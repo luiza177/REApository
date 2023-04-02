@@ -1,0 +1,67 @@
+Zone "MasterTrack"
+// ===========================================
+// BUTTONS AND SCROLL
+// ===========================================
+    Prev                        Reaper _SWS_SELPREVMORR // SWS: Goto/select previous marker/region
+    Next                        Reaper _SWS_SELNEXTMORR // SWS: Goto/select next marker/region
+    Shift+Prev                  Reaper 40029   // Edit: Undo
+    Shift+Next                  Reaper 40030   // Edit: Redo
+
+    RotaryBigPush               Reaper 40846  // Track: View FX chain for master track
+    Shift+RotaryBigPush         Reaper 41882  // View: Show monitoring FX Chain
+  
+    Increase+RotaryBig          Reaper 40837 // Move edit cursor to start of next measure (no seek)
+    Decrease+RotaryBig          Reaper 40838 // Move edit cursor to start of current measure (no seek)
+    Shift+Increase+RotaryBig    Reaper "_59d08ed1a638416aafc53caaa3c8ecc7" // Next grid
+    Shift+Decrease+RotaryBig    Reaper "_f0fcd551b4ee451996189b8dcb27bc33" // Prev grid
+    Fader                       TrackVolume
+// ===========================================
+// All the button States and action
+// ===========================================
+    Link        	        GoSelectedTrack
+    Link                    GoSubZone "FocusedFXParam"
+
+    Shift+Link              GoSelectedTrackSend
+
+    Pan                     GoSelectedTrack
+    Pan                     GoSubZone "NavigatorPan"
+
+    Channel                 GoSelectedTrack
+    Channel                 GoSubZone "NavigatorChannel"
+
+    Scroll                  GoSelectedTrack
+    Scroll                  GoSubZone "NavigatorScroll"
+
+    Shift+Scroll            GoSelectedTrack
+    Shift+Scroll            GoSubZone "NavigatorZoom"
+
+    Property+Marker         NoFeedback   
+    Marker                  GoSelectedTrack
+    Marker                  GoSubZone "NavigatorMarker"
+
+    Property+Section        NoFeedback   
+    Section                 GoSelectedTrack
+    Section                 GoSubZone "NavigatorSection"
+
+    Click                   Reaper 40364 // Toggle metronome
+    Hold+Click              Reaper 40363 // Show metronome settings
+    / Shift+Click             Reaper 40716 // Show MIDI editor
+
+    Master                  Reaper "_RS9cad4781bd536598c2d8f768dfd2f10b8a467679" // always on
+    Master                  GoSelectedTrack
+
+// ===========================================
+// FUNCTION KEYS
+// ===========================================
+    // Function-Action-1
+    Shift+Master              Reaper 40783 // Grid: Adjust by 1/2
+    // Function-Action-2 
+    Shift+Click               Reaper 41050 // Toggle show master tempo envelope
+    // Function-Action-3 
+    Shift+Section             Reaper 40078 // Show mixer
+    Property+Shift+Section    NoFeedback
+    // Function-Action-4 
+    Shift+Marker              Reaper 40786 // Grid: Adjust by 2
+    Property+Shift+Marker     NoFeedback   
+
+ZoneEnd
