@@ -1,5 +1,13 @@
-desc:Play your MIDI keyboard like an e-drum set
-
+/*  
+version: 1.0.0
+desc: DrumKey
+author: Luiza Carvalho
+about:
+  # DrumKey
+  Play your MIDI keyboard + Sustain pedal like it was an e-drum set.
+  * Sustain Pedal down triggers fixed velocity notes
+  * Mod wheel controls Hi-hat open-ness.
+*/
 slider1:out_kick_vel=115<0,127,1>Kick velocity
 slider2:in_sidestick=35<0,127,1>Sidestick (input)
 slider3:in_snare_l=38<0,127,1>Snare L (input)
