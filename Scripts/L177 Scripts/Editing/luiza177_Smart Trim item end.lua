@@ -12,5 +12,5 @@ else
   reaper.SetEditCurPos(cursorPos, true, false)
 end
 
-reaper.Undo_EndBlock('Trim clip End',0)
+reaper.Undo_EndBlock('Trim item end',0)
 

@@ -15,4 +15,4 @@ reaper.Main_OnCommand(41924, 0)--Item: Nudge Items Volume -1dB
 reaper.Main_OnCommand(41924, 0)--Item: Nudge Items Volume -1dB
 --reaper.Main_OnCommand(41924, 0)--Item: Nudge Items Volume -1dB
 
-reaper.Undo_EndBlock('-3dB at selection',0)
+reaper.Undo_EndBlock('-4dB at selection',0)
