@@ -2,12 +2,12 @@
 <index version="1" name="L177 REApository">
     <category name="Effects">
         <reapack name="luiza177_DrumKey.jsfx" type="effect" desc="DrumKey">
+            <metadata>
+                <description>
+                    <![CDATA[{\rtf1 {\fonttbl {\f0 Helvetica;}} \f0\fs60 Play your MIDI Keyboard like it was an e-drum set}]]>
+                </description>
+            </metadata>
             <version name="1.0.0" author="Luiza177">
-                <metadata>
-                    <description>
-                        <![CDATA[{\rtf1 {\fonttbl {\f0 Helvetica;}} \f0\fs60 Play your MIDI Keyboard like it was an e-drum set}]]>
-                    </description>
-                </metadata>
                 <source>
                     https://github.com/luiza177/REApository/raw/e1670abc8f7f03e4a7812c03119458daf91e5226/Effects/luiza177_DrumKey.jsfx
                 </source>
