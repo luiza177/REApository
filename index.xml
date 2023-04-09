@@ -3,6 +3,11 @@
     <category name="Effects">
         <reapack name="luiza177_DrumKey.jsfx" type="effect" desc="DrumKey">
             <version name="1.0.0" author="Luiza177">
+                <metadata>
+                    <description>
+                        <![CDATA[{\rtf1 {\fonttbl {\f0 Helvetica;}} \f0\fs60 Play your MIDI Keyboard like it was an e-drum set}]]>
+                    </description>
+                </metadata>
                 <source>
                     https://github.com/luiza177/REApository/raw/c45bda66d5cfc327a51d4823886cbad4a810b9ef/Effects/luiza177_DrumKey.jsfx
                 </source>
