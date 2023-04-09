@@ -8,9 +8,7 @@
                 </description>
             </metadata>
             <version name="1.0.0" author="Luiza177">
-                <source>
-                    https://github.com/luiza177/REApository/raw/e1670abc8f7f03e4a7812c03119458daf91e5226/Effects/luiza177_DrumKey.jsfx
-                </source>
+                <source>https://github.com/luiza177/REApository/raw/e1670abc8f7f03e4a7812c03119458daf91e5226/Effects/luiza177_DrumKey.jsfx</source>
             </version>
         </reapack>
     </category>
