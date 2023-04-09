@@ -11,8 +11,7 @@
 {\pard \ql \f0 \sa180 \li0 \fi0 Play your MIDI Keyboard (+ Sustain Pedal) like it was an e-drum set.\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Use your Sustain pedal to output fixed velocity kick drum notes\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Use the Mod wheel for Hi-hat openness\sa180\par}
-                ]]>
-                </description>
+                }]]></description>
             </metadata>
             <version name="1.0.0" author="Luiza177">
                 <source>https://github.com/luiza177/REApository/raw/ae38c38bd934b736996fabc147596a9a10b69a7f/JSFX/MIDI/luiza177_DrumKey.jsfx</source>
