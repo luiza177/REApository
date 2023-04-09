@@ -3,10 +3,15 @@
     <category name="JSFX/MIDI">
         <reapack name="luiza177_DrumKey.jsfx" type="effect" desc="DrumKey">
             <metadata>
-                <description>{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs36 DrumKey\par}
+                <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}}
+                    {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+                    \widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs36 DrumKey\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 Play your MIDI Keyboard (+ Sustain Pedal) like it was an e-drum set.\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Use your Sustain pedal to output fixed velocity kick drum notes\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Use the Mod wheel for Hi-hat openness\sa180\par}
+                ]]>
                 </description>
             </metadata>
             <version name="1.0.0" author="Luiza177">
