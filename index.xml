@@ -14,6 +14,11 @@
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Duplicate input keys for Snare and Toms for easier fills\sa180\par}
                 }]]></description>
             </metadata>
+            <version name="1.0.1" author="Luiza177">
+                <source>https://github.com/luiza177/REApository/raw/ae38c38bd934b736996fabc147596a9a10b69a7f/JSFX/MIDI/luiza177_DrumKey.jsfx</source>
+                <changelog><![CDATA[{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Fixed hi-hat CC control\par}
+                    {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Added HH tight at 0\sa180\par}]]></changelog>
+            </version>
             <version name="1.0.0" author="Luiza177">
                 <source>https://github.com/luiza177/REApository/raw/ae38c38bd934b736996fabc147596a9a10b69a7f/JSFX/MIDI/luiza177_DrumKey.jsfx</source>
                 <changelog><![CDATA[Initial Release]]></changelog>

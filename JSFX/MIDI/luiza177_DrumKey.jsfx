@@ -1,12 +1,12 @@
 /*  
-version: 1.0.0
+version: 1.0.1
 desc: DrumKey
 author: Luiza 177
 about:
   # DrumKey
   Play your MIDI keyboard + Sustain pedal like it was an e-drum set.
   * Sustain Pedal down triggers fixed velocity notes
-  * Mod wheel controls Hi-hat open-ness.
+  * Mod wheel or chosen CC controls Hi-hat open-ness.
   * Duplicate input keys for Snare and Toms for easier fills
 changelog:
     v1.0.0 - Initial release
@@ -75,8 +75,9 @@ while (midirecv(offset,msg1,msg2,msg3)) (
             msg3==127 ? midisend(offset,note_on,out_kick_note,out_kick_vel);
             msg3<127 ? midisend(offset,note_off,out_kick_note,0);
         );
-        msg1==cc && (msg2==1 || msg2==11) ? (
-            msg3 <= 44 ? hh_note = out_hh_closed;
+        msg1==cc && (msg2==1 || msg2==in_hh_cc) ? (
+            msg3 == 0 ? hh_note = out_hh_tight;
+            ms3 > 0 && msg3 <= 44 ? hh_note = out_hh_closed;
             msg3 > 44 && msg3 < 66 ? hh_note = out_hh_open_1;
             msg3 >= 66 && msg3 < 88 ? hh_note = out_hh_open_2;
             msg3 >= 88 && msg3 < 112 ? hh_note = out_hh_open_3;
