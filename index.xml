@@ -16,8 +16,13 @@
             </metadata>
             <version name="1.0.1" author="Luiza177">
                 <source>https://github.com/luiza177/REApository/raw/0eed8d051cdb0bb612394ceba4bc4f474ae4261f/JSFX/MIDI/luiza177_DrumKey.jsfx</source>
-                <changelog><![CDATA[{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Fixed hi-hat CC control\par}
-                    {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Added HH tight at 0\sa180\par}]]></changelog>
+                <changelog><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+                    {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+                    \widowctrl\hyphauto
+                    
+                    {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Fixed hi-hat CC control\par}
+                    {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Added HH tight at 0\sa180\par}
+                    }]]></changelog>
             </version>
             <version name="1.0.0" author="Luiza177">
                 <source>https://github.com/luiza177/REApository/raw/ae38c38bd934b736996fabc147596a9a10b69a7f/JSFX/MIDI/luiza177_DrumKey.jsfx</source>
