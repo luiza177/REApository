@@ -26,7 +26,8 @@ Zone "NavigatorMarker"
     Link                    LeaveSubZone
     Link                    GoSubZone "FocusedFXParam"
 
-    Shift+Link              GoSelectedTrackSend
+    / Shift+Link              GoSelectedTrackSend
+    Shift+Link              GoAssociatedZone SelectedTrackSend
 
     Pan                     LeaveSubZone
     Pan                     GoSubZone "NavigatorPan" 
@@ -48,7 +49,8 @@ Zone "NavigatorMarker"
     Click                   Reaper 40364 // Toggle metronome
     Hold+Click              Reaper 40363 // Show metronome settings
 
-    Master                  GoMasterTrack
+    / Master                  GoMasterTrack
+    Master                  GoAssociatedZone MasterTrack
 
 // ===========================================
 // FUNCTION KEYS

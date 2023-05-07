@@ -17,12 +17,14 @@ Zone "SelectedTrack"
 // NAVIGATOR
 // ===========================================
     Prev                         Reaper 40286 // prev track
+    / Prev                         Bank SelectedTrack -1
     Next                         Reaper 40285 // next track
+    / Next                         Bank SelectedTrack 1
     Shift+Prev                   Reaper 40029   // Edit: Undo
     Shift+Next                   Reaper 40030   // Edit: Redo
 
     RotaryBigPush                Reaper "_S&M_TOGLFXCHAIN" // SWS/S&M: Toggle show FX chain windows for selected tracks
-    Shift+RotaryBigPush          
+    Shift+RotaryBigPush          NoAction // TODO: add something here
 
     Increase+RotaryBig           Reaper 40837  // Move edit cursor to start of next measure (no seek)
     Decrease+RotaryBig           Reaper 40838  // Move edit cursor to start of current measure (no seek)
@@ -38,7 +40,8 @@ Zone "SelectedTrack"
 // ===========================================
 
     Link                  GoSubZone "FocusedFXParam"
-    Shift+Link            GoSelectedTrackSend
+    / Shift+Link            GoSelectedTrackSend
+    Shift+Link            GoAssociatedZone SelectedTrackSend
     Pan                   GoSubZone "NavigatorPan"    
     Channel               GoSubZone "NavigatorChannel"
     Scroll                GoSubZone "NavigatorScroll"
@@ -50,16 +53,17 @@ Zone "SelectedTrack"
     
     Marker                GoSubZone "NavigatorMarker"
 
-    Master                GoMasterTrack
+    / Master                GoMasterTrack
+    Master                GoAssociatedZone MasterTrack
 
 // ===========================================
 // FUNCTION KEYS
 // ===========================================
-    Shift+Master          NoAction
+    Shift+Master          NoAction // TODO: Add something here
     Shift+Click           Reaper 40716 // Show MIDI editor
     Shift+Section         NoFeedback
     Shift+Section         Reaper 40078 // Show mixer
     Shift+Marker          NoFeedback
-    Shift+Marker          NoAction
+    Shift+Marker          NoAction // TODO: Add something here
 
 ZoneEnd

@@ -2,8 +2,10 @@ Zone "SelectedTrackReceive"
 // ===========================================
 // BUTTONS AND SCROLL
 // ===========================================
-    Next                        SelectedTrackReceiveBank 1
-    Prev                        SelectedTrackReceiveBank -1
+    / Next                        SelectedTrackReceiveBank 1
+    Next                        Bank SelectedTrackReceive 1
+    / Prev                        SelectedTrackReceiveBank -1
+    Prev                        Bank SelectedTrackReceive -1
     Shift+Prev                  Reaper 40029   // Edit: Undo
     Shift+Next                  Reaper 40030   // Edit: Redo
 
@@ -20,37 +22,46 @@ Zone "SelectedTrackReceive"
 // ===========================================
 // All the button States and action
 // ===========================================
-    Link        	        GoSelectedTrack
+    / Link        	        GoSelectedTrack
+    Link        	        GoAssociatedZone SelectedTrack
     Link                    GoSubZone "FocusedFXParam"
 
     Shift+Link              FixedRGBColorDisplay { 200 50 255 }
-    Shift+Link              GoSelectedTrack
+    / Shift+Link              GoSelectedTrack
+    Shift+Link              GoAssociatedZone SelectedTrack
 
-    Pan                     GoSelectedTrack
+    / Pan                     GoSelectedTrack
+    Pan                     GoAssociatedZone SelectedTrack
     Pan                     GoSubZone "NavigatorPan"
 
-    Channel                 GoSelectedTrack
+    / Channel                 GoSelectedTrack
+    Channel                 GoAssociatedZone SelectedTrack
     Channel                 GoSubZone "NavigatorChannel"
 
-    Scroll                  GoSelectedTrack
+    / Scroll                  GoSelectedTrack
+    Scroll                  GoAssociatedZone SelectedTrack
     Scroll                  GoSubZone "NavigatorScroll"
 
-    Shift+Scroll            GoSelectedTrack
+    / Shift+Scroll            GoSelectedTrack
+    Shift+Scroll            GoAssociatedZone SelectedTrack
     Shift+Scroll            GoSubZone "NavigatorZoom"
 
     Property+Marker         NoFeedback   
-    Marker                  GoSelectedTrack
+    / Marker                  GoSelectedTrack
+    Marker                  GoAssociatedZone SelectedTrack
     Marker                  GoSubZone "NavigatorMarker"
 
     Property+Section         NoFeedback   
-    Section                  GoSelectedTrack
+    / Section                  GoSelectedTrack
+    Section                  GoAssociatedZone SelectedTrack
     Section                  GoSubZone "NavigatorSection"
 
     Click                    Reaper 40364 // Toggle metronome
     Hold+Click               Reaper 40363 // Show metronome settings
     / Shift+Click              Reaper 40716 // Show MIDI editor
 
-    Master                  GoMasterTrack
+    / Master                  GoMasterTrack
+    Master                  GoAssociatedZone MasterTrack
 // ===========================================
 // FUNCTION KEYS
 // ===========================================

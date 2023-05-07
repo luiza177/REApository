@@ -19,7 +19,8 @@ Zone "NavigatorScroll"
     Link                  LeaveSubZone
     Link                  GoSubZone "FocusedFXParam"
 
-    Shift+Link            GoSelectedTrackSend
+    / Shift+Link            GoSelectedTrackSend
+    Shift+Link            GoAssociatedZone SelectedTrackSend
 
     Pan                   LeaveSubZone
     Pan                   GoSubZone "NavigatorPan" 
@@ -43,7 +44,8 @@ Zone "NavigatorScroll"
     Hold+Click            Reaper 40363 // Show metronome settings
     / Shift+Click           Reaper 40716 // Show MIDI editor
 
-    Master                GoMasterTrack
+    / Master                GoMasterTrack
+    Master                GoAssociatedZone MasterTrack
 
 
 // ===========================================

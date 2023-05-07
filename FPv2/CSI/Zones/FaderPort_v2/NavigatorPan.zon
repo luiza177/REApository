@@ -5,8 +5,10 @@ Zone "NavigatorPan"
     RotaryBigPush                TrackPan [ 0.5 ]
     Shift+RotaryBigPush          TrackPanAutoRight [ 1.0 ]
 
-    Increase+RotaryBig           Reaper 40285 // next track
-    Decrease+RotaryBig           Reaper 40286 // prev track
+    / Increase+RotaryBig           Reaper 40285 // next track
+    Increase+RotaryBig           Bank Track 1
+    / Decrease+RotaryBig           Reaper 40286 // prev track
+    Decrease+RotaryBig           Bank Track -1
     
     Shift+Increase+RotaryBig     Reaper 40837  // Move edit cursor to start of next measure (no seek)
     Shift+Decrease+RotaryBig     Reaper 40838  // Move edit cursor to start of current measure (no seek)
@@ -20,7 +22,8 @@ Zone "NavigatorPan"
   Link                    LeaveSubZone
   Link                    GoSubZone "FocusedFXParam"
 
-  Shift+Link              GoSelectedTrackSend
+  / Shift+Link              GoSelectedTrackSend
+  Shift+Link              GoAssociatedZone SelectedTrackSend
   
   Pan                     FixedRGBColorDisplay { 0 255 20 }
   Pan                     LeaveSubZone
@@ -31,20 +34,21 @@ Zone "NavigatorPan"
   Scroll                  LeaveSubZone
   Scroll                  GoSubZone "NavigatorScroll"
 
-  Shift+Scroll          LeaveSubZone
-  Shift+Scroll          GoSubZone "NavigatorZoom"
+  Shift+Scroll            LeaveSubZone
+  Shift+Scroll            GoSubZone "NavigatorZoom"
 
   InvertFB+Marker         LeaveSubZone
   Marker                  GoSubZone "NavigatorMarker"
 
-  InvertFB+Section         LeaveSubZone
-  Section                  GoSubZone "NavigatorSection"
+  InvertFB+Section        LeaveSubZone
+  Section                 GoSubZone "NavigatorSection"
 
-  Click                  Reaper 40364 // Toggle metronome
-  Hold+Click             Reaper 40363 // Show metronome settings
-  Shift+Click            Reaper 40716 // Show MIDI editor
+  Click                   Reaper 40364 // Toggle metronome
+  Hold+Click              Reaper 40363 // Show metronome settings
+  Shift+Click             Reaper 40716 // Show MIDI editor
 
-  Master                GoMasterTrack
+  / Master                  GoMasterTrack
+  Master                  GoAssociatedZone MasterTrack
     
 // ===========================================
 // FUNCTION KEYS

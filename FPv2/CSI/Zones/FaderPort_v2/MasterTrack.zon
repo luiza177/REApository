@@ -19,28 +19,36 @@ Zone "MasterTrack"
 // All the button States and action
 // ===========================================
     Link        	        GoSelectedTrack
+    Link        	        GoAssociatedZone SelectedTrack
     Link                    GoSubZone "FocusedFXParam"
 
-    Shift+Link              GoSelectedTrackSend
+    / Shift+Link              GoSelectedTrackSend
+    Shift+Link              GoAssociatedZone SelectedTrackSend
 
-    Pan                     GoSelectedTrack
+    / Pan                     GoSelectedTrack
+    Pan                     GoAssociatedZone SelectedTrack
     Pan                     GoSubZone "NavigatorPan"
 
-    Channel                 GoSelectedTrack
+    / Channel                 GoSelectedTrack
+    Channel                 GoAssociatedZone SelectedTrack
     Channel                 GoSubZone "NavigatorChannel"
 
-    Scroll                  GoSelectedTrack
+    / Scroll                  GoSelectedTrack
+    Scroll                  GoAssociatedZone SelectedTrack
     Scroll                  GoSubZone "NavigatorScroll"
 
-    Shift+Scroll            GoSelectedTrack
+    / Shift+Scroll            GoSelectedTrack
+    Shift+Scroll            GoAssociatedZone SelectedTrack
     Shift+Scroll            GoSubZone "NavigatorZoom"
 
     Property+Marker         NoFeedback   
-    Marker                  GoSelectedTrack
+    / Marker                  GoSelectedTrack
+    Marker                  GoAssociatedZone SelectedTrack
     Marker                  GoSubZone "NavigatorMarker"
 
     Property+Section        NoFeedback   
-    Section                 GoSelectedTrack
+    / Section                 GoSelectedTrack
+    Section                 GoAssociatedZone SelectedTrack
     Section                 GoSubZone "NavigatorSection"
 
     Click                   Reaper 40364 // Toggle metronome
@@ -48,7 +56,8 @@ Zone "MasterTrack"
     / Shift+Click             Reaper 40716 // Show MIDI editor
 
     Master                  Reaper "_RS9cad4781bd536598c2d8f768dfd2f10b8a467679" // always on
-    Master                  GoSelectedTrack
+    / Master                  GoSelectedTrack
+    Master                  GoAssociatedZone SelectedTrack
 
 // ===========================================
 // FUNCTION KEYS

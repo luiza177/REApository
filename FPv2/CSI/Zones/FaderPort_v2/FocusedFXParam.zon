@@ -22,7 +22,8 @@ Zone "FocusedFXParam"
     Link        	        FixedRGBColorDisplay { 200 255 255 }
     Link        	        LeaveSubZone
 
-    Shift+Link              GoSelectedTrackSend
+    / Shift+Link              GoSelectedTrackSend
+    Shift+Link              GoAssociatedZone SelectedTrackSend
 
     Pan                     LeaveSubZone
     Pan                     GoSubZone "NavigatorPan"
@@ -46,7 +47,7 @@ Zone "FocusedFXParam"
     Hold+Click            Reaper 40363 // Show metronome settings
     / Shift+Click           Reaper 40716 // Show MIDI editor
 
-    Master                GoMasterTrack
+    Master                GoAssociatedZone MasterTrack
 
 // ===========================================
 // FUNCTION KEYS
