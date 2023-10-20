@@ -3,9 +3,11 @@
     <category name="JSFX/MIDI">
         <reapack name="luiza177_CC11 to Hi-hat openness.jsfx" type="effect" desc="CC11 to Hi-hat openness">
             <metadata>
-                <description>
-
-                </description>
+                <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}}
+                    {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+                    \widowctrl\hyphauto
+{\pard \ql \f0 \sa180 \li0 \fi0 Simple JSFX that allows you to use your MIDI Expression pedal to control Hi-hat open level in multisampled drums.\par}
+                }]]></description>
             </metadata>
             <version name="1.0.0" author="Luiza177">
                 <source>https://github.com/luiza177/REApository/blob/e0c890dacb207060fb3319a92bff693cd2d1c9df/JSFX/MIDI/luiza177_CC11%20to%20Hi-hat%20openness.jsfx</source>
@@ -14,9 +16,11 @@
         </reapack>
         <reapack name="luiza177_CC64 to Kick.jsfx" type="effect" desc="CC64 to Kick">
             <metadata>
-                <description>
-
-                </description>
+                <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}}
+                    {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+                    \widowctrl\hyphauto
+{\pard \ql \f0 \sa180 \li0 \fi0 Simple JSFX that allows you to use your Sustain pedal as a kick drum.\par}
+                }]]></description>
             </metadata>
             <version name="1.0.0" author="Luiza177">
                 <source>https://github.com/luiza177/REApository/blob/e0c890dacb207060fb3319a92bff693cd2d1c9df/JSFX/MIDI/luiza177_CC64%20to%20Kick.jsfx</source>
