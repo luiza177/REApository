@@ -2,6 +2,11 @@ Zone "FocusedFXParam"
 // ===========================================
 // BUTTONS AND SCROLL
 // ===========================================
+    Prev                         Reaper 40286 // prev track
+    Next                         Reaper 40285 // next track
+    Shift+Prev                   Undo
+    Shift+Next                   Redo
+
     // TODO: FX Link - Float FX of focused FX param?
     RotaryBigPush                Reaper "_S&M_TOGLFXCHAIN" // SWS/S&M: Toggle show FX chain windows for selected tracks
     Shift+RotaryBigPush          ToggleFXBypass
@@ -22,30 +27,35 @@ Zone "FocusedFXParam"
     Link        	        FixedRGBColorDisplay { 200 255 255 }
     Link        	        LeaveSubZone
 
-    / Shift+Link              GoSelectedTrackSend
+    / Shift+Link              NoFeedback
     Shift+Link              GoAssociatedZone SelectedTrackSend
 
+    Pan                     NoFeedback
     Pan                     LeaveSubZone
     Pan                     GoSubZone "NavigatorPan"
 
+    Channel                 NoFeedback
     Channel                 LeaveSubZone
     Channel                 GoSubZone "NavigatorChannel"
 
+    Scroll                  NoFeedback
     Scroll                  LeaveSubZone
     Scroll                  GoSubZone "NavigatorScroll"
 
+    Shift+Scroll            NoFeedback
     Shift+Scroll            LeaveSubZone
     Shift+Scroll            GoSubZone "NavigatorZoom"
 
-    InvertFB+Marker         LeaveSubZone
+    Marker                  NoFeedback
+    Marker                  LeaveSubZone
     Marker                  GoSubZone "NavigatorMarker"
 
-    InvertFB+Section         LeaveSubZone
-    Section                  GoSubZone "NavigatorSection"
+    Section                 NoFeedback
+    Section                 LeaveSubZone
+    Section                 GoSubZone "NavigatorSection"
 
     Click                 Reaper 40364 // Toggle metronome
     Hold+Click            Reaper 40363 // Show metronome settings
-    / Shift+Click           Reaper 40716 // Show MIDI editor
 
     Master                GoAssociatedZone MasterTrack
 
@@ -58,9 +68,7 @@ Zone "FocusedFXParam"
     Shift+Click           Reaper Reaper 40271 // Show FX Browser
     // Function-Action-3 
     Shift+Section         Reaper 40078 // Show mixer
-    Property+Shift+Section   NoFeedback   
     // Function-Action-4 
     Shift+Marker          Reaper 41984 // FX: Arm track envelope for last touched FX parameter
-    Property+Shift+Marker   NoFeedback   
 
 ZoneEnd

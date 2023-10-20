@@ -2,14 +2,17 @@ Zone NavigatorZoom
 // ===========================================
 // BUTTONS AND SCROLL
 // ===========================================
-  Prev                         Reaper 41326 // decrease track height
-  Prev                         Reaper 41326 // decrease track height
-  Prev                         Reaper 41326 // decrease track height
-  Prev                         Reaper 41326 // decrease track height
-  Next                         Reaper 41325 // increase track height
-  Next                         Reaper 41325 // increase track height
-  Next                         Reaper 41325 // increase track height
-  Next                         Reaper 41325 // increase track height
+  Prev                       Reaper 41326 // decrease track height
+  Prev                       Reaper 41326 // decrease track height
+  Prev                       Reaper 41326 // decrease track height
+  Prev                       Reaper 41326 // decrease track height
+  Next                       Reaper 41325 // increase track height
+  Next                       Reaper 41325 // increase track height
+  Next                       Reaper 41325 // increase track height
+  Next                       Reaper 41325 // increase track height
+
+  Shift+Prev                 Undo
+  Shift+Next                 Redo
 
   RotaryBigPush              Reaper "_XENAK_TOGGLETRACKHEIAB"
   Hold+RotaryBigPush         Reaper 40295 // View: Zoom out project
@@ -23,35 +26,39 @@ Zone NavigatorZoom
 // ===========================================
 // All the button States and action
 // ===========================================
+    Link                    NoFeedback
     Link                    LeaveSubZone
     Link                    GoSubZone "FocusedFXParam"
 
-    / Shift+Link              GoSelectedTrackSend
+    Shift+Link              NoFeedback
     Shift+Link              GoAssociatedZone SelectedTrackSend
     
+    Pan                     NoFeedback
     Pan                     LeaveSubZone
     Pan                     GoSubZone "NavigatorPan" 
 
+    Channel                 NoFeedback
     Channel                 LeaveSubZone
     Channel                 GoSubZone "NavigatorChannel"
     
+    / Scroll                  NoFeedback
     Scroll                  LeaveSubZone
     Scroll                  GoSubZone "NavigatorScroll"
 
     Shift+Scroll            FixedRGBColorDisplay { 55 200 255 }
     Shift+Scroll            LeaveSubZone
 
-    InvertFB+Marker         LeaveSubZone
+    Marker                  NoFeedback
+    Marker                  LeaveSubZone
     Marker                  GoSubZone "NavigatorMarker"
 
-    InvertFB+Section        LeaveSubZone
+    Section                 NoFeedback
+    Section                 LeaveSubZone
     Section                 GoSubZone "NavigatorSection"
 
     Click                   Reaper 40364 // Toggle metronome
     Hold+Click              Reaper 40363 // Show metronome settings
-    / Shift+Click             Reaper 40716 // Show MIDI editor
 
-    / Master                  GoMasterTrack
     Master                  GoAssociatedZone MasterTrack
 
 // ===========================================
@@ -65,6 +72,5 @@ Zone NavigatorZoom
   Shift+Section              Reaper 40078 // Show mixer
 // Function-Action-4 
   Shift+Marker               Reaper 40786 // Grid: Adjust by 2
-  Property+Shift+Marker      NoFeedback    
 
 ZoneEnd

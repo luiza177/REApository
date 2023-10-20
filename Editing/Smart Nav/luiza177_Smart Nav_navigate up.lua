@@ -14,6 +14,7 @@ end
 
 reaper.Undo_BeginBlock()
 
+------------------------------------------------- ENVELOPES
 -- context = reaper.GetCursorContext()
 
 -- if context == 2 then -- 0 if track panels, 1 if items, 2 if envelopes, otherwise unknown
@@ -26,7 +27,9 @@ reaper.Undo_BeginBlock()
 -- end
 
 razor_editing = GetRazorEditStart()
+-------------------------------------------------
 
+------------------------------------------------- RAZOR OR TIME SEL 
 if not razor_editing then
     cursorPos = reaper.GetCursorPosition()
     reaper.Main_OnCommand(40418, 0) --Item navigation: Select and move to item in previous track
@@ -39,4 +42,4 @@ else
     reaper.Main_OnCommand(command, 0)
 end
 
-reaper.Undo_EndBlock("Smart navigate up", 0)
+reaper.Undo_EndBlock("SmartNav: Up", 0)

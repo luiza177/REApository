@@ -1,6 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <index version="1" name="L177 REApository">
     <category name="JSFX/MIDI">
+        <reapack name="luiza177_CC11 to Hi-hat openness.jsfx" type="effect" desc="CC11 to Hi-hat openness">
+            <metadata>
+                <description>
+
+                </description>
+            </metadata>
+            <version name="1.0.0" author="Luiza177">
+                <source></source>
+                <changelog><![CDATA[Initial Release]]></changelog>
+            </version>
+        </reapack>
+        <reapack name="luiza177_CC64 to Kick.jsfx" type="effect" desc="CC64 to Kick">
+            <metadata>
+                <description>
+
+                </description>
+            </metadata>
+            <version name="1.0.0" author="Luiza177">
+                <source></source>
+                <changelog><![CDATA[Initial Release]]></changelog>
+            </version>
+        </reapack>
         <reapack name="luiza177_DrumKey.jsfx" type="effect" desc="DrumKey">
             <metadata>
                 <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}}
@@ -14,6 +36,10 @@
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Duplicate input keys for Snare and Toms for easier fills\sa180\par}
                 }]]></description>
             </metadata>
+            <version name="1.1.0" author="Luiza177">
+                <source></source>
+                <changelog><![CDATA[Added modifiable Hihat open levels]]></changelog>
+            </version>
             <version name="1.0.1" author="Luiza177">
                 <source>https://github.com/luiza177/REApository/raw/0eed8d051cdb0bb612394ceba4bc4f474ae4261f/JSFX/MIDI/luiza177_DrumKey.jsfx</source>
                 <changelog><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}

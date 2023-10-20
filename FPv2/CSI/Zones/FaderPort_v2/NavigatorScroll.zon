@@ -5,6 +5,9 @@ Zone "NavigatorScroll"
     Next                          Reaper "_59d08ed1a638416aafc53caaa3c8ecc7" // Next grid
     Prev                          Reaper "_f0fcd551b4ee451996189b8dcb27bc33" // Prev grid
 
+    Shift+Prev                    Undo
+    Shift+Next                    Redo
+
     RotaryBigPush                 Reaper "_SWS_HSCROLL10"  // SWS: Horizontal scroll to put edit cursor at 10%
     Hold+RotaryBigPush            Reaper 40295 // View: Zoom out project
 
@@ -16,15 +19,18 @@ Zone "NavigatorScroll"
 // ===========================================
 // All the button States and action
 // ===========================================
+    Link                  NoFeedback
     Link                  LeaveSubZone
     Link                  GoSubZone "FocusedFXParam"
 
-    / Shift+Link            GoSelectedTrackSend
+    Shift+Link            NoFeedback
     Shift+Link            GoAssociatedZone SelectedTrackSend
 
+    Pan                   NoFeedback
     Pan                   LeaveSubZone
     Pan                   GoSubZone "NavigatorPan" 
  
+    Channel               NoFeedback
     Channel               LeaveSubZone
     Channel               GoSubZone "NavigatorChannel"
  
@@ -34,17 +40,17 @@ Zone "NavigatorScroll"
     Shift+Scroll          LeaveSubZone
     Shift+Scroll          GoSubZone "NavigatorZoom"
 
-    InvertFB+Marker       LeaveSubZone
+    Marker                NoFeedback
+    Marker                LeaveSubZone
     Marker                GoSubZone "NavigatorMarker"
 
-    InvertFB+Section      LeaveSubZone
+    Section               NoFeedback
+    Section               LeaveSubZone
     Section               GoSubZone "NavigatorSection"
 
     Click                 Reaper 40364 // Toggle metronome
     Hold+Click            Reaper 40363 // Show metronome settings
-    / Shift+Click           Reaper 40716 // Show MIDI editor
 
-    / Master                GoMasterTrack
     Master                GoAssociatedZone MasterTrack
 
 
@@ -59,6 +65,5 @@ Zone "NavigatorScroll"
     Shift+Section           Reaper 40078 // Show mixer
     // Function-Action-4 
     Shift+Marker            Reaper 40786 // Grid: Adjust by 2
-    Property+Shift+Marker   NoFeedback   
 
 ZoneEnd

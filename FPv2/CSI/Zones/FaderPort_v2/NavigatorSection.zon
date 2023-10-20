@@ -5,6 +5,9 @@ Zone "NavigatorSection"
   Prev                          Reaper 40625 // Time selection: Set start point
   Next                          Reaper 40626 // Time selection: Set end point
 
+  Shift+Prev                    Undo
+  Shift+Next                    Redo
+
   // TODO: If no item is selected, select first item in selected track
   Increase+RotaryBig            Reaper "_RSaac49fc844fcb401e70a933167559f68b35a77c5" // Smart nav forward
   Decrease+RotaryBig            Reaper "_RSe04e48cb2ebd0e854f1536d8b8c12be90d0d5e8d" // Smart nav backwards
@@ -18,47 +21,50 @@ Zone "NavigatorSection"
 // ===========================================
 // All the button States and action
 // ===========================================
+  Link                    NoFeedback
   Link                    LeaveSubZone
   Link                    GoSubZone "FocusedFXParam"
 
-  / Shift+Link              GoSelectedTrackSend
+  Shift+Link              NoFeedback
   Shift+Link              GoAssociatedZone SelectedTrackSend
 
+  Pan                     NoFeedback
   Pan                     LeaveSubZone
   Pan                     GoSubZone "NavigatorPan" 
 
+  Channel                 NoFeedback
   Channel                 LeaveSubZone
   Channel                 GoSubZone "NavigatorChannel"
  
+  Scroll                  NoFeedback
   Scroll                  LeaveSubZone
   Scroll                  GoSubZone "NavigatorScroll"
 
+  Shift+Scroll            NoFeedback
   Shift+Scroll            LeaveSubZone
   Shift+Scroll            GoSubZone "NavigatorZoom"
 
-  InvertFB+Marker         LeaveSubZone
+  Marker                  NoFeedback
+  Marker                  LeaveSubZone
   Marker                  GoSubZone "NavigatorMarker"
 
   Section                 LeaveSubZone
 
   Click                   Reaper 40364 // Toggle metronome
   Hold+Click              Reaper 40363 // Show metronome settings
-  / Shift+Click             Reaper 40716 // Show MIDI editor
 
-  / Master                  GoMasterTrack
   Master                  GoAssociatedZone MasterTrack
 
 // ===========================================
 // FUNCTION KEYS
 // ===========================================
   // Function-Action-1
-  Shift+Master          Reaper 41250 // Item edit: Nudge left by last nudge dialog settings
+  Shift+Master            Reaper 41250 // Item edit: Nudge left by last nudge dialog settings
   // Function-Action-2 
-  Shift+Click           Reaper 41228 // Item edit: Toggle open/close nudge/set dialog
+  Shift+Click             Reaper 41228 // Item edit: Toggle open/close nudge/set dialog
   // Function-Action-3 
-  Shift+Section         Reaper 40078 // Show mixer
+  Shift+Section           Reaper 40078 // Show mixer
   // Function-Action-4 
-  Shift+Marker          Reaper 41249 // Item edit: Nudge right by last nudge dialog settings
-  Property+Shift+Marker   NoFeedback   
+  Shift+Marker            Reaper 41249 // Item edit: Nudge right by last nudge dialog settings
 
 ZoneEnd

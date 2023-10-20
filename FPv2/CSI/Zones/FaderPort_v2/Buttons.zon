@@ -38,19 +38,24 @@ Zone "Buttons"
 // TRANSPORT
 // ===========================================
     Loop                     CycleTimeline
-    Shift+Loop               Reaper "_54440d3412c4431584ccb34d0a969b45" / punch-in / Toggle pre-roll // TODO: needs script??
+    / Shift+Loop               Reaper "_54440d3412c4431584ccb34d0a969b45" / punch-in / Toggle pre-roll // TODO: needs script??
+    Shift+Loop               Reaper 41819 // toggle pre-roll
+    
     Rewind                   Rewind
     Shift+Rewind             Reaper 40172 // prev Marker
+    
     FastForward              FastForward
     Shift+FastForward        Reaper 40173 // next Marker
+    
     Play                     Play
+    
     Stop                     Stop
     Hold+Stop                Reaper 40042 // Transport: Go to start of project
-    / Shift+Stop ?
-    Record                   Record // TODO: change to 3s + record custom action
-    Shift+Record             Reaper "_fefe486e3de34fc4b4d8929ecc2598d5" // Normal Record mode
     
+    Record                   Record 
+    Shift+Record             Reaper "_RS359bd63916bb3ef4ca5503166d76dea7b6992a80" / Toggle zen-mode
+    
+    / Record                   Reaper "_RS2ee92013ae3ede3af26973bce1d8d7f0afb01197" // zen/smart record
     / Play                     Reaper "" // zen/smart play
     / Stop                     Reaper "" // zen/smart stop
-    / Record                   Reaper "" // zen/smart record
 ZoneEnd

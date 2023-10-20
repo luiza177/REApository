@@ -7,7 +7,7 @@ Zone "SelectedTrack"
       "NavigatorZoom"
       "NavigatorMarker"
       "NavigatorSection"
-      "SelectedTrackSend"
+    /   "SelectedTrackSend"
     SubZonesEnd
 
     Fader                     TrackVolume
@@ -17,11 +17,9 @@ Zone "SelectedTrack"
 // NAVIGATOR
 // ===========================================
     Prev                         Reaper 40286 // prev track
-    / Prev                         Bank SelectedTrack -1
     Next                         Reaper 40285 // next track
-    / Next                         Bank SelectedTrack 1
-    Shift+Prev                   Reaper 40029   // Edit: Undo
-    Shift+Next                   Reaper 40030   // Edit: Redo
+    Shift+Prev                   Undo
+    Shift+Next                   Redo
 
     RotaryBigPush                Reaper "_S&M_TOGLFXCHAIN" // SWS/S&M: Toggle show FX chain windows for selected tracks
     Shift+RotaryBigPush          NoAction // TODO: add something here
@@ -39,21 +37,34 @@ Zone "SelectedTrack"
 // All the button States and action
 // ===========================================
 
+    Link                  NoFeedback
     Link                  GoSubZone "FocusedFXParam"
-    / Shift+Link            GoSelectedTrackSend
+    
+    Shift+Link            NoFeedback
     Shift+Link            GoAssociatedZone SelectedTrackSend
+    
+    Pan                   NoFeedback    
     Pan                   GoSubZone "NavigatorPan"    
+    
+    Channel               NoFeedback
     Channel               GoSubZone "NavigatorChannel"
+    
+    Scroll                NoFeedback
     Scroll                GoSubZone "NavigatorScroll"
+    
+    Shift+Scroll          NoFeedback
     Shift+Scroll          GoSubZone "NavigatorZoom"
+    
     Click                 Reaper 40364 // Toggle metronome
     Hold+Click            Reaper 40363 // Show metronome settings
     
+    Section               NoFeedback
     Section               GoSubZone "NavigatorSection"
     
+    Marker                NoFeedback
     Marker                GoSubZone "NavigatorMarker"
 
-    / Master                GoMasterTrack
+    Master                NoFeedback
     Master                GoAssociatedZone MasterTrack
 
 // ===========================================
@@ -61,9 +72,7 @@ Zone "SelectedTrack"
 // ===========================================
     Shift+Master          NoAction // TODO: Add something here
     Shift+Click           Reaper 40716 // Show MIDI editor
-    Shift+Section         NoFeedback
     Shift+Section         Reaper 40078 // Show mixer
-    Shift+Marker          NoFeedback
     Shift+Marker          NoAction // TODO: Add something here
 
 ZoneEnd

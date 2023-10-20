@@ -11,6 +11,9 @@ Zone "NavigatorChannel"
   Next                         Reaper 41325 // increase track height
   Next                         Reaper 41325 // increase track height
 
+  Shift+Prev                   Undo
+  Shift+Next                   Redo
+
   RotaryBigPush                Reaper "_S&M_TOGLFXCHAIN" // SWS/S&M: Toggle show FX chain windows for selected tracks
   // FIXME: sets volume to max
   Hold+RotaryBigPush           TrackVolume [ 0.716 ]
@@ -30,34 +33,39 @@ Zone "NavigatorChannel"
 // ===========================================
 // All the button States and action
 // ===========================================
+  Link                    NoFeedback
   Link                    LeaveSubZone
   Link                    GoSubZone "FocusedFXParam"
 
-  / Shift+Link              GoSelectedTrackSend
+  Shift+Link              NoFeedback
   Shift+Link              GoAssociatedZone SelectedTrackSend
 
+  Pan                     NoFeedback
   Pan                     LeaveSubZone
   Pan                     GoSubZone "NavigatorPan"
 
   Channel                 FixedRGBColorDisplay { 0 55 255 }
   Channel                 LeaveSubZone
 
+  Scroll                  NoFeedback
   Scroll                  LeaveSubZone
   Scroll                  GoSubZone "NavigatorScroll"
 
+  Shift+Scroll            NoFeedback
   Shift+Scroll            LeaveSubZone
   Shift+Scroll            GoSubZone "NavigatorZoom"
 
-  InvertFB+Marker         LeaveSubZone
+  Marker                  NoFeedback
+  Marker                  LeaveSubZone
   Marker                  GoSubZone "NavigatorMarker"
 
-  InvertFB+Section        LeaveSubZone
+  Section                 NoFeedback
+  Section                 LeaveSubZone
   Section                 GoSubZone "NavigatorSection"
 
   Click                   Reaper 40364 // Toggle metronome
   Hold+Click              Reaper 40363 // Show metronome settings
 
-  / Master                  GoMasterTrack
   Master                  GoAssociatedZone MasterTrack
   
 // ===========================================
@@ -67,12 +75,10 @@ Zone "NavigatorChannel"
   Shift+Master              Reaper 1042 // cycle folder collapsed states
 // Function-Action-2 
   / Shift+Click               Reaper 1041  // toggle folder state
-  InvertFB+Shift+Click      TrackVolume [ 0.716 ]
+  Shift+Click               TrackVolume [ 0.716 ]
 // Function-Action-3 
   Shift+Section             Reaper 40078 // Show mixer
-  Property+Shift+Section    NoFeedback
 // Function-Action-4 
   Shift+Marker              Reaper 40406 // toggle volume envelope
-  Property+Shift+Marker     NoFeedback    
 
 ZoneEnd

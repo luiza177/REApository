@@ -4,6 +4,9 @@ Zone "NavigatorMarker"
 // ===========================================
   Prev                         Reaper _SWS_SELPREVMORR // SWS: Goto/select previous marker/region
   Next                         Reaper _SWS_SELNEXTMORR // SWS: Goto/select next marker/region
+
+  Shift+Prev                   Undo
+  Shift+Next                   Redo
                 
   RotaryBigPush                Reaper 40171 // Markers: Insert and/or edit marker at current position
   / Hold+RotaryBigPush           Reaper 40171 // Markers: Insert and/or edit marker at current position
@@ -23,33 +26,38 @@ Zone "NavigatorMarker"
 // ===========================================
 // All the button States and action
 // ===========================================
+    Link                    NoFeedback
     Link                    LeaveSubZone
     Link                    GoSubZone "FocusedFXParam"
 
-    / Shift+Link              GoSelectedTrackSend
+    Shift+Link              NoFeedback
     Shift+Link              GoAssociatedZone SelectedTrackSend
 
+    Pan                     NoFeedback
     Pan                     LeaveSubZone
     Pan                     GoSubZone "NavigatorPan" 
 
+    Channel                 NoFeedback
     Channel                 LeaveSubZone
     Channel                 GoSubZone "NavigatorChannel"
     
+    Scroll                  NoFeedback
     Scroll                  LeaveSubZone
     Scroll                  GoSubZone "NavigatorScroll"
 
+    Shift+Scroll            NoFeedback
     Shift+Scroll            LeaveSubZone
     Shift+Scroll            GoSubZone "NavigatorZoom"
 
     Marker                  LeaveSubZone
 
-    InvertFB+Section        LeaveSubZone
+    Section                 NoFeedback
+    Section                 LeaveSubZone
     Section                 GoSubZone "NavigatorSection"
 
     Click                   Reaper 40364 // Toggle metronome
     Hold+Click              Reaper 40363 // Show metronome settings
 
-    / Master                  GoMasterTrack
     Master                  GoAssociatedZone MasterTrack
 
 // ===========================================
@@ -63,6 +71,5 @@ Zone "NavigatorMarker"
     Shift+Section           Reaper 40078 // Show mixer
     // Function-Action-4 
     Shift+Marker            Reaper 40616 // Markers: Edit region near cursor
-    Property+Shift+Marker   NoFeedback   
 
 ZoneEnd

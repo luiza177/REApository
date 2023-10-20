@@ -1,12 +1,11 @@
 Zone "Home"
     IncludedZones
         "Buttons"
+        "SelectedTrack" // SelectedTracks?
     IncludedZonesEnd
     AssociatedZones
-        "SelectedTrack" // SelectedTracks?
         "SelectedTrackSend"
         "SelectedTrackReceive"
         "MasterTrack"
     AssociatedZonesEnd
-    OnInitialization GoAssociatedZone SelectedTrack
 ZoneEnd

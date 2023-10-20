@@ -1,5 +1,5 @@
 /*  
-version: 1.0.1
+version: 1.1.0
 desc: DrumKey
 author: Luiza 177
 about:
@@ -41,6 +41,13 @@ slider27:out_cymbal_1=49<0,127,1>Cymbal 1 (output)
 slider28:out_cymbal_2=57<0,127,1>Cymbal 2 (output)
 slider29:out_ride_bow=51<0,127,1>Ride bow (output)
 slider30:out_ride_bell=53<0,127,1>Ride bell (output)
+//slider11
+slider32:HH_lvl0=120<0,127,1>HH tight to closed
+slider33:HH_lvl1=92<0,127,1>HH closed to open1
+slider34:HH_lvl2=70<0,127,1>HH open1 to open2
+slider35:HH_lvl3=40<0,127,1>HH open2 to open3
+slider36:HH_lvl4=15<0,127,1>HH open3 to open4
+//slider37:HH_lvl5=
 
 in_pin:none
 out_pin:none
@@ -76,12 +83,12 @@ while (midirecv(offset,msg1,msg2,msg3)) (
             msg3<127 ? midisend(offset,note_off,out_kick_note,0);
         );
         msg1==cc && (msg2==1 || msg2==in_hh_cc) ? (
-            msg3 == 0 ? hh_note = out_hh_tight;
-            ms3 > 0 && msg3 <= 44 ? hh_note = out_hh_closed;
-            msg3 > 44 && msg3 < 66 ? hh_note = out_hh_open_1;
-            msg3 >= 66 && msg3 < 88 ? hh_note = out_hh_open_2;
-            msg3 >= 88 && msg3 < 112 ? hh_note = out_hh_open_3;
-            msg3 >= 112 ? hh_note = out_hh_open_4;
+            msg3 >= HH_lvl0 ? hh_note = out_hh_tight;
+            msg3 < HH_lvl0 && msg3 >= HH_lvl1 ? hh_note = out_hh_closed;
+            msg3 < HH_lvl1 && msg3 > HH_lvl2 ? hh_note = out_hh_open_1;
+            msg3 <= HH_lvl2 && msg3 > HH_lvl3 ? hh_note = out_hh_open_2;
+            msg3 <= HH_lvl3 && msg3 > HH_lvl4 ? hh_note = out_hh_open_3;
+            msg3 <= HH_lvl4 ? hh_note = out_hh_open_4;
         );
 
     );
