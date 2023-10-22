@@ -41,7 +41,7 @@
                 }]]></description>
             </metadata>
             <version name="1.1.0" author="Luiza177">
-                <source></source>
+                <source>https://github.com/luiza177/REApository/raw/695d116e833b59369a72bc412e2485d473dc7a04/JSFX/MIDI/luiza177_DrumKey.jsfx</source>
                 <changelog><![CDATA[Added modifiable Hihat open levels]]></changelog>
             </version>
             <version name="1.0.1" author="Luiza177">
