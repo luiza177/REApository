@@ -42,7 +42,7 @@ if not razor_editing then
 else
     reaper.Main_OnCommand(42399, 0) --Razor edit: Move areas forwards without contents
     _, position = GetRazorEditStart()
-    reaper.SetEditCurPos( position, true, true )
+    reaper.SetEditCurPos( position, true, false )
 end
 
 reaper.Undo_EndBlock("SmartNav: Forward", 0)

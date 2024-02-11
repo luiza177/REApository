@@ -42,7 +42,7 @@ else
     reaper.Main_OnCommand(42400, 0) --Razor edit: Move areas backwards without contents
 
     _, position = GetRazorEditStart()
-    reaper.SetEditCurPos( position, true, true )
+    reaper.SetEditCurPos( position, true, false )
 end
 -------------------------------------------------
 
