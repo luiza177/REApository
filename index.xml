@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="Luiza177's REApository" commit="b4c2b105abab52c54a30d37f44233c392e0360d5">
+  <category name="Editing">
+    <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
+      <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <changelog><![CDATA[- v1.0 - init]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/Editing/luiza177_Extend%20time%20selection%20by%20one%20measure.lua</source>
+      </version>
+    </reapack>
+    <reapack name="luiza177_Smart mute.lua" type="script">
+      <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <changelog><![CDATA[- v1.0 - init]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/Editing/luiza177_Smart%20mute.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="Editing/Smart Nav">
+    <reapack name="luiza177_Smart Nav_navigate backward.lua" type="script" desc="Smart Nav: Navigate backward">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Select previous media item in same track (and set time selection). Or move razor edit area back without contents, or select previous envelope point.\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <changelog><![CDATA[- v1.0 - init]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/Editing/Smart%20Nav/luiza177_Smart%20Nav_navigate%20backward.lua</source>
+      </version>
+    </reapack>
+    <reapack name="luiza177_Smart Nav_navigate down.lua" type="script" desc="Smart Nav: Navigate down">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Select adjacent media item in next track. Or move razor edit area down without contents.\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <changelog><![CDATA[- v1.0 - init]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/Editing/Smart%20Nav/luiza177_Smart%20Nav_navigate%20down.lua</source>
+      </version>
+    </reapack>
+    <reapack name="luiza177_Smart Nav_navigate forward.lua" type="script" desc="Select next media item in same track (and set time selection). Or move razor edit area forward without contents, or select next envelope point.">
+      <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <changelog><![CDATA[- v1.0 - init]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/Editing/Smart%20Nav/luiza177_Smart%20Nav_navigate%20forward.lua</source>
+      </version>
+    </reapack>
+    <reapack name="luiza177_Smart Nav_navigate up.lua" type="script" desc="Select adjacent media item in previous track. Or move razor edit area up without contents.">
+      <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <changelog><![CDATA[- v1.0 - init]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/Editing/Smart%20Nav/luiza177_Smart%20Nav_navigate%20up.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="JSFX/MIDI">
+    <reapack name="luiza177_CC11 to Hi-hat openness.jsfx" type="effect" desc="CC11 to Hi-Hat openness">
+      <version name="1.0.0" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <source>https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/JSFX/MIDI/luiza177_CC11%20to%20Hi-hat%20openness.jsfx</source>
+      </version>
+    </reapack>
+    <reapack name="luiza177_CC64 to Kick.jsfx" type="effect" desc="CC64 (sustain pedal) to kick drum">
+      <version name="1.0.0" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <source>https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/JSFX/MIDI/luiza177_CC64%20to%20Kick.jsfx</source>
+      </version>
+    </reapack>
+    <reapack name="luiza177_DrumKey.jsfx" type="effect" desc="DrumKey">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 DrumKey\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Play your MIDI keyboard + Sustain pedal like it was an e-drum set.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Sustain Pedal down triggers fixed velocity notes\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Mod wheel or chosen CC controls Hi-hat open-ness.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Duplicate input keys for Snare and Toms for easier fills\sa180\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <changelog><![CDATA[- v1.0 - Initial release]]></changelog>
+        <source>https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/JSFX/MIDI/luiza177_DrumKey.jsfx</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="MIDI Editor">
+    <reapack name="luiza177_Transpose down to previous note in custom view.lua" type="script" desc="Transpose MIDI notes down to next visible note in Custom Note Order view (or just transpose notes down by a semitone)">
+      <version name="0.1" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <changelog><![CDATA[- v0.1 - init]]></changelog>
+        <source main="midi_editor">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/MIDI%20Editor/luiza177_Transpose%20down%20to%20previous%20note%20in%20custom%20view.lua</source>
+      </version>
+    </reapack>
+    <reapack name="luiza177_Transpose up to next note in custom view.lua" type="script" desc="Transpose MIDI notes up to next visible note in Custom Note Order view (or just transpose notes up by a semitone)">
+      <version name="0.1" author="Luiza177" time="2024-06-08T13:26:54Z">
+        <changelog><![CDATA[- v0.1 - init]]></changelog>
+        <source main="midi_editor">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/MIDI%20Editor/luiza177_Transpose%20up%20to%20next%20note%20in%20custom%20view.lua</source>
+      </version>
+    </reapack>
+  </category>
+</index>
