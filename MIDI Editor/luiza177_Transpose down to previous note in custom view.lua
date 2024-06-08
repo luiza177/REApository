@@ -1,6 +1,7 @@
+-- @description Transpose notes down to next visible note in Custom Note Order mode
 -- @author Luiza177
 -- @version 0.1
--- @description Transpose MIDI notes down to next visible note in Custom Note Order view (or just transpose notes down by a semitone)
+-- @about Transpose MIDI notes down to next visible note in Custom Note Order view (or just transpose notes down by a semitone)
 -- @changelog
 --    - v0.1 - init
 

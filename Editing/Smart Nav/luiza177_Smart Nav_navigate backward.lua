@@ -7,28 +7,26 @@
 -- @noindex
 
 function GetRazorEditStart()
-    local retval = false  
+    local retval = false
     local position = ""
     for i=0, reaper.CountTracks(0)-1 do
-        _, x = reaper.GetSetMediaTrackInfo_String(reaper.GetTrack(0,i), "P_RAZOREDITS", "string", false)
-        if x ~= "" then 
-            retval = true        
+        local _, x = reaper.GetSetMediaTrackInfo_String(reaper.GetTrack(0,i), "P_RAZOREDITS", "string", false)
+        if x ~= "" then
+            retval = true
             x = x:match "%d+.%d+"
             position = x
             -- if position == "" then position = x
             -- elseif position > x then position = x
             -- end
         end
-        
     end
-    
     return retval, position
 end
 
 reaper.Undo_BeginBlock()
 
 -----------------------------------------------  ENVELOPES
-context = reaper.GetCursorContext()
+local context = reaper.GetCursorContext()
 
 if context == 2 then -- 0 if track panels, 1 if items, 2 if envelopes, otherwise unknown
     local selectPrevEnvPoint = reaper.NamedCommandLookup("_BR_ENV_SEL_PREV_POINT")
@@ -41,7 +39,7 @@ if context == 2 then -- 0 if track panels, 1 if items, 2 if envelopes, otherwise
     -- TO BE CONTINUED
 else
     ------------------------------------------------ RAZOR OR TIME SEL
-    razor_editing = GetRazorEditStart()
+    local razor_editing = GetRazorEditStart()
 
     if not razor_editing then
         reaper.Main_OnCommand(40416, 0) --Item navigation: Select and move to previous item
