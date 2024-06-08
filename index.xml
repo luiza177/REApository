@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="bbf30df8fbb7aa002e335207d83cebcf40aeaa4d">
+<index version="1" name="Luiza177's REApository" commit="e18cbdc78772fc9a848fc5549bc55d2635d72d52">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -20,23 +20,6 @@
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
         <changelog><![CDATA[- v1.0 - init]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/Editing/luiza177_Smart%20mute.lua</source>
-      </version>
-    </reapack>
-  </category>
-  <category name="Editing/Smart Nav">
-    <reapack name="luiza177_Smart Nav_navigate up.lua" type="script" desc="Smart Nav: Navigate up">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
-{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
-\widowctrl\hyphauto
-
-{\pard \ql \f0 \sa180 \li0 \fi0 Select adjacent media item in previous track. Or move razor edit area up without contents.\par}
-}
-]]></description>
-      </metadata>
-      <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
-        <changelog><![CDATA[- v1.0 - init]]></changelog>
-        <source main="main">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/Editing/Smart%20Nav/luiza177_Smart%20Nav_navigate%20up.lua</source>
       </version>
     </reapack>
   </category>
@@ -72,7 +55,16 @@
     </reapack>
   </category>
   <category name="MIDI Editor">
-    <reapack name="luiza177_Transpose down to previous note in custom view.lua" type="script" desc="Transpose MIDI notes down to next visible note in Custom Note Order view (or just transpose notes down by a semitone)">
+    <reapack name="luiza177_Transpose down to previous note in custom view.lua" type="script" desc="Transpose notes down to next visible note in Custom Note Order mode">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Transpose MIDI notes down to next visible note in Custom Note Order view (or just transpose notes down by a semitone)\par}
+}
+]]></description>
+      </metadata>
       <version name="0.1" author="Luiza177" time="2024-06-08T13:26:54Z">
         <changelog><![CDATA[- v0.1 - init]]></changelog>
         <source main="midi_editor">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/MIDI%20Editor/luiza177_Transpose%20down%20to%20previous%20note%20in%20custom%20view.lua</source>
