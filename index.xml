@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="e18cbdc78772fc9a848fc5549bc55d2635d72d52">
+<index version="1" name="Luiza177's REApository" commit="ef0100258b3f1c1e904fc83b92bd6ec544e2d8bd">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -70,7 +70,16 @@
         <source main="midi_editor">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/MIDI%20Editor/luiza177_Transpose%20down%20to%20previous%20note%20in%20custom%20view.lua</source>
       </version>
     </reapack>
-    <reapack name="luiza177_Transpose up to next note in custom view.lua" type="script" desc="Transpose MIDI notes up to next visible note in Custom Note Order view (or just transpose notes up by a semitone)">
+    <reapack name="luiza177_Transpose up to next note in custom view.lua" type="script" desc="Transpose notes up to next visible note in Custom Note Order mode">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Transpose MIDI notes up to next visible note in Custom Note Order view (or just transpose notes up by a semitone)\par}
+}
+]]></description>
+      </metadata>
       <version name="0.1" author="Luiza177" time="2024-06-08T13:26:54Z">
         <changelog><![CDATA[- v0.1 - init]]></changelog>
         <source main="midi_editor">https://github.com/luiza177/REApository/raw/b4c2b105abab52c54a30d37f44233c392e0360d5/MIDI%20Editor/luiza177_Transpose%20up%20to%20next%20note%20in%20custom%20view.lua</source>
