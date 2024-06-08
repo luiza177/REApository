@@ -1,8 +1,9 @@
 -- @description Transpose notes up to next visible note in Custom Note Order mode
 -- @author Luiza177
--- @version 0.1
+-- @version 0.2
 -- @about Transpose MIDI notes up to next visible note in Custom Note Order view (or just transpose notes up by a semitone)
 -- @changelog
+--    - v0.2 - takes view mode into account
 --    - v0.1 - init
 
 local function findNoteinCustomNames(num, customNoteNames)
@@ -31,9 +32,12 @@ for notes in trackStateChunk:gmatch('CUSTOM_NOTE_ORDER(.-)\n') do
 end
 
 local midiEditor = reaper.MIDIEditor_GetActive()
+local isCustomNoteView = reaper.GetToggleCommandStateEx(32060, 40143) -- View: Show custom note row view
+
 
 -- if no custom note order then just normal transpose
-if (#customNoteOrder == 0) then
+if (#customNoteOrder == 0 or isCustomNoteView ~= 1) then
+
     reaper.MIDIEditor_OnCommand(midiEditor, 40177) --Edit: Move notes up one semitone
     return
 end
