@@ -1,7 +1,7 @@
 -- @description Smart Nav: Navigate up
 -- @author Luiza177
 -- @version 1.0
--- @description Select adjacent media item in previous track. Or move razor edit area up without contents. 
+-- @about Select adjacent media item in previous track. Or move razor edit area up without contents. 
 -- 
 -- FUTURE: or select nearest envelope point in previous envelope lane
 -- @changelog

@@ -4,6 +4,7 @@
 -- @about Select previous media item in same track (and set time selection). Or move razor edit area back without contents, or select previous envelope point.
 -- @changelog
 --    - v1.0 - init
+-- @noindex
 
 function GetRazorEditStart()
     local retval = false  

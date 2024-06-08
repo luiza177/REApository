@@ -1,9 +1,10 @@
 -- @description Smart Nav: Navigate forward
 -- @author Luiza177
 -- @version 1.0
--- @description Select next media item in same track (and set time selection). Or move razor edit area forward without contents, or select next envelope point.
+-- @about Select next media item in same track (and set time selection). Or move razor edit area forward without contents, or select next envelope point.
 -- @changelog
 --    - v1.0 - init
+-- @noindex
 
 function GetRazorEditStart()
     local retval = false  

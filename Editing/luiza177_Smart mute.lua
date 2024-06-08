@@ -1,5 +1,7 @@
+-- @description Smart Mute
 -- @author Luiza177
 -- @version 1.0
+-- @about Mutes items, selected part of items / razor edit or tracks, depending on context.
 -- @changelog
 --    - v1.0 - init
 

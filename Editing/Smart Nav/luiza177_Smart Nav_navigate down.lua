@@ -6,6 +6,7 @@
 -- FUTURE: or select nearest envelope point in next envelope lane
 -- @changelog
 --    - v1.0 - init
+-- @noindex
 
 function GetRazorEditStart()
     local retval = false  

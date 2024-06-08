@@ -7,6 +7,7 @@
 -- @noindex
 -- @changelog
 --    - v0.1 - init
+-- @noindex
 
 function GetRazorEditStart()
     local retval = false  

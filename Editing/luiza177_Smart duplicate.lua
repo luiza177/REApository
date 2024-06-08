@@ -1,5 +1,7 @@
+-- @description Smart Duplicate
 -- @author Luiza177
 -- @version 1.0
+-- @about duplicates Item, selected part of item / razor edit  or Track depending on mouse context
 -- @noindex
 -- @changelog
 --    - v1.0 - init
