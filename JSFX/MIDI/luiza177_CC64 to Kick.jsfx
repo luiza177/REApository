@@ -1,0 +1,27 @@
+/*  
+desc: CC64 (sustain pedal) to kick drum
+author: Luiza177
+version: 1.0.0
+*/
+slider1:out_kick_vel=115<0,127,1>Kick velocity
+slider2:out_kick_note=36<0,127,1>Kick (output)
+
+in_pin:none
+out_pin:none
+
+@init
+note_on = $x90; // channel 1
+note_off = $x80; // channel 1
+cc = $xB0; // channel 1
+hh_note = out_hh_closed;
+
+
+@block
+while (midirecv(offset,msg1,msg2,msg3)) (
+    // noteStatus = msg1 & $xF0;
+    // channel = msg1 & $x0F;
+  msg1==cc && msg2==64 ? (
+  msg3==127 ? midisend(offset,note_on,out_kick_note,out_kick_vel);
+  msg3<127 ? midisend(offset,note_off,out_kick_note,0);
+): ( midisend(offset,msg1,msg2,msg3)));
+        

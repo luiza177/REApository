@@ -1,0 +1,76 @@
+Zone NavigatorZoom
+// ===========================================
+// BUTTONS AND SCROLL
+// ===========================================
+  Prev                       Reaper 41326 // decrease track height
+  Prev                       Reaper 41326 // decrease track height
+  Prev                       Reaper 41326 // decrease track height
+  Prev                       Reaper 41326 // decrease track height
+  Next                       Reaper 41325 // increase track height
+  Next                       Reaper 41325 // increase track height
+  Next                       Reaper 41325 // increase track height
+  Next                       Reaper 41325 // increase track height
+
+  Shift+Prev                 Undo
+  Shift+Next                 Redo
+
+  RotaryBigPush              Reaper "_XENAK_TOGGLETRACKHEIAB"
+  Hold+RotaryBigPush         Reaper 40295 // View: Zoom out project
+  Shift+RotaryBigPush        Reaper 40723 // View: Expand selected track height, minimize others
+
+  Increase+RotaryBig         Reaper 1012 // View: Zoom in horizontal
+  Decrease+RotaryBig         Reaper 1011 // View: Zoom out horizontal
+  Shift+Decrease+RotaryBig   Reaper 40112 // View: Zoom in vertical
+  Shift+Increase+RotaryBig   Reaper 40111 // View: Zoom out vertical
+
+// ===========================================
+// All the button States and action
+// ===========================================
+    Link                    NoFeedback
+    Link                    LeaveSubZone
+    Link                    GoSubZone "FocusedFXParam"
+
+    Shift+Link              NoFeedback
+    Shift+Link              GoAssociatedZone SelectedTrackSend
+    
+    Pan                     NoFeedback
+    Pan                     LeaveSubZone
+    Pan                     GoSubZone "NavigatorPan" 
+
+    Channel                 NoFeedback
+    Channel                 LeaveSubZone
+    Channel                 GoSubZone "NavigatorChannel"
+    
+    / Scroll                  NoFeedback
+    Scroll                  LeaveSubZone
+    Scroll                  GoSubZone "NavigatorScroll"
+
+    Shift+Scroll            FixedRGBColorDisplay { 55 200 255 }
+    Shift+Scroll            LeaveSubZone
+
+    Marker                  NoFeedback
+    Marker                  LeaveSubZone
+    Marker                  GoSubZone "NavigatorMarker"
+
+    Section                 NoFeedback
+    Section                 LeaveSubZone
+    Section                 GoSubZone "NavigatorSection"
+
+    Click                   Reaper 40364 // Toggle metronome
+    Hold+Click              Reaper 40363 // Show metronome settings
+
+    Master                  GoAssociatedZone MasterTrack
+
+// ===========================================
+// FUNCTION KEYS
+// ===========================================
+// Function-Action-1
+  Shift+Master               Reaper 40783 // Grid: Adjust by 1/2
+// Function-Action-2 
+  Shift+Click                Reaper 41622 // View: Toggle zoom to selected items
+// Function-Action-3 
+  Shift+Section              Reaper 40078 // Show mixer
+// Function-Action-4 
+  Shift+Marker               Reaper 40786 // Grid: Adjust by 2
+
+ZoneEnd

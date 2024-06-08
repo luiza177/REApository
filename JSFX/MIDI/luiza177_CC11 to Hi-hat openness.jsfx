@@ -1,0 +1,50 @@
+/*  
+desc: CC11 to Hi-Hat openness
+author: Luiza177
+version: 1.0.0
+*/
+
+slider1:in_hh_cc=11<0,127,1>Hi-hat CC (input)
+slider2:in_hh=37<0,127,1>Hi-hat note (input)
+slider4:out_hh_closed=42<0,127,1>Hi-hat closed (output)
+slider5:out_hh_tight=63<0,127,1>Hi-hat tight (output)
+slider6:out_hh_open_1=24<0,127,1>Hi-hat open 1 (output)
+slider7:out_hh_open_2=46<0,127,1>Hi-hat open 2 (output)
+slider8:out_hh_open_3=26<0,127,1>Hi-hat open 3 (output)
+slider9:out_hh_open_4=60<0,127,1>Hi-hat open 4 (output)
+//slider11
+slider11:HH_lvl0=120<0,127,1>HH tight to closed
+slider12:HH_lvl1=92<0,127,1>HH closed to open1
+slider13:HH_lvl2=70<0,127,1>HH open1 to open2
+slider14:HH_lvl3=40<0,127,1>HH open2 to open3
+slider15:HH_lvl4=15<0,127,1>HH open3 to open4
+
+in_pin:none
+out_pin:none
+
+@init
+note_on = $x90; // channel 1
+note_off = $x80; // channel 1
+cc = $xB0; // channel 1
+hh_note = out_hh_closed;
+
+
+@block
+while (midirecv(offset,msg1,msg2,msg3)) (
+    // noteStatus = msg1 & $xF0;
+    // channel = msg1 & $x0F;
+    msg1==note_on || msg1==note_off ? (
+        new_msg2 = -1;
+        msg2==in_hh ? new_msg2 = hh_note;
+        new_msg2 != -1 ? midisend(offset,msg1,new_msg2,msg3) : midisend(offset, msg1, msg2, msg3);
+    ) : (
+    msg1==cc && (msg2==1 || msg2==in_hh_cc) ? (
+        msg3 >= HH_lvl0 ? hh_note = out_hh_tight;
+        msg3 <  HH_lvl0 && msg3 >= HH_lvl1 ? hh_note = out_hh_closed;
+        msg3 <  HH_lvl1 && msg3 >  HH_lvl2 ? hh_note = out_hh_open_1;
+        msg3 <= HH_lvl2 && msg3 >  HH_lvl3 ? hh_note = out_hh_open_2;
+        msg3 <= HH_lvl3 && msg3 >  HH_lvl4 ? hh_note = out_hh_open_3;
+        msg3 <= HH_lvl4 ? hh_note = out_hh_open_4;
+        ) : (midisend(offset,msg1,msg2,msg3));
+    );
+);

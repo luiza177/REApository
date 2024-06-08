@@ -1,0 +1,70 @@
+Zone "SelectedTrackReceive"
+// ===========================================
+// BUTTONS AND SCROLL
+// ===========================================
+    Next                        Bank SelectedTrackReceive 1
+    Prev                        Bank SelectedTrackReceive -1
+    Shift+Prev                  Reaper 40029   // Edit: Undo
+    Shift+Next                  Reaper 40030   // Edit: Redo
+
+    RotaryBigPush                TrackReceiveMute
+    Shift+RotaryBigPush          TrackReceivePrePost
+
+    Increase+RotaryBig           Reaper 40285 // next track
+    Decrease+RotaryBig           Reaper 40286 // prev track
+
+    Shift+RotaryBig              TrackReceivePan
+
+    Fader                        TrackReceiveVolume
+
+// ===========================================
+// All the button States and action
+// ===========================================
+    Link        	        NoFeedback
+    Link        	        GoHome
+    Link                    GoSubZone "FocusedFXParam"
+
+    Shift+Link              FixedRGBColorDisplay { 200 50 255 }
+    Shift+Link              GoHome
+
+    Pan                     NoFeedback
+    Pan                     GoHome
+    Pan                     GoSubZone "NavigatorPan"
+
+    Channel                 NoFeedback
+    Channel                 GoHome
+    Channel                 GoSubZone "NavigatorChannel"
+
+    Scroll                  NoFeedback
+    Scroll                  GoHome
+    Scroll                  GoSubZone "NavigatorScroll"
+
+    Shift+Scroll            NoFeedback
+    Shift+Scroll            GoHome
+    Shift+Scroll            GoSubZone "NavigatorZoom"
+
+    Marker                  NoFeedback   
+    Marker                  GoHome
+    Marker                  GoSubZone "NavigatorMarker"
+
+    Property+Section         NoFeedback   
+    Section                  GoHome
+    Section                  GoSubZone "NavigatorSection"
+
+    Click                    Reaper 40364 // Toggle metronome
+    Hold+Click               Reaper 40363 // Show metronome settings
+
+    Master                  GoAssociatedZone MasterTrack
+// ===========================================
+// FUNCTION KEYS
+// ===========================================
+    // Function-Action-1
+    Shift+Master            TrackReceiveStereoMonoToggle
+    // Function-Action-2 
+    Shift+Click             TrackReceiveInvertPolarity
+    // Function-Action-3 
+    Shift+Section           Reaper 40078 // Show mixer
+    // Function-Action-4 
+    Shift+Marker            NoAction
+
+ZoneEnd

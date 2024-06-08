@@ -1,0 +1,95 @@
+/*  
+desc: DrumKey
+author: Luiza177
+version: 1.0
+about:
+  # DrumKey
+  Play your MIDI keyboard + Sustain pedal like it was an e-drum set.
+  * Sustain Pedal down triggers fixed velocity notes
+  * Mod wheel or chosen CC controls Hi-hat open-ness.
+  * Duplicate input keys for Snare and Toms for easier fills
+changelog:
+    - v1.0 - Initial release
+*/
+slider1:in_sidestick=35<0,127,1>Sidestick (input)
+slider2:in_snare_l=38<0,127,1>Snare L (input)
+slider3:in_snare_r=40<0,127,1>Snare R (input)
+slider4:in_hh_cc=11<0,127,1>Hi-hat CC (input)
+slider5:in_hh=37<0,127,1>Hi-hat note (input)
+slider6:in_tom_1_L=41<0,127,1>Tom 1 L (input)
+slider7:in_tom_1_R=43<0,127,1>Tom 1 R (input)
+slider8:in_tom_2_L=45<0,127,1>Tom 2 L (input)
+slider9:in_tom_2_R=47<0,127,1>Tom 2 R (input)
+slider10:in_cymbal_1=34<0,127,1>Cymbal 1 (input)
+slider11:in_cymbal_2=46<0,127,1>Cymbal 2 (input)
+slider12:in_ride_bow=42<0,127,1>Ride bow (input)
+slider13:in_ride_bell=44<0,127,1>Ride bell (input)
+//slider14
+slider15:out_kick_vel=115<0,127,1>Kick velocity
+slider16:out_kick_note=36<0,127,1>Kick (output)
+slider17:out_sidestick=37<0,127,1>Sidestick (output)
+slider18:out_snare=38<0,127,1>Snare (output)
+slider19:out_hh_closed=42<0,127,1>Hi-hat closed (output)
+slider20:out_hh_tight=63<0,127,1>Hi-hat tight (output)
+slider21:out_hh_open_1=24<0,127,1>Hi-hat open 1 (output)
+slider22:out_hh_open_2=46<0,127,1>Hi-hat open 2 (output)
+slider23:out_hh_open_3=26<0,127,1>Hi-hat open 3 (output)
+slider24:out_hh_open_4=60<0,127,1>Hi-hat open 4 (output)
+slider25:out_tom_1=47<0,127,1>Tom 1 (output)
+slider26:out_tom_2=43<0,127,1>Tom 2 (output)
+slider27:out_cymbal_1=49<0,127,1>Cymbal 1 (output)
+slider28:out_cymbal_2=57<0,127,1>Cymbal 2 (output)
+slider29:out_ride_bow=51<0,127,1>Ride bow (output)
+slider30:out_ride_bell=53<0,127,1>Ride bell (output)
+//slider11
+slider32:HH_lvl0=120<0,127,1>HH tight to closed
+slider33:HH_lvl1=92<0,127,1>HH closed to open1
+slider34:HH_lvl2=70<0,127,1>HH open1 to open2
+slider35:HH_lvl3=40<0,127,1>HH open2 to open3
+slider36:HH_lvl4=15<0,127,1>HH open3 to open4
+//slider37:HH_lvl5=
+
+in_pin:none
+out_pin:none
+
+@init
+note_on = $x90; // channel 1
+note_off = $x80; // channel 1
+cc = $xB0; // channel 1
+hh_note = out_hh_closed;
+
+
+@block
+while (midirecv(offset,msg1,msg2,msg3)) (
+    // noteStatus = msg1 & $xF0;
+    // channel = msg1 & $x0F;
+    msg1==note_on || msg1==note_off ? (
+        new_msg2 = -1;
+        msg2==in_snare_L || msg2==in_snare_R ? new_msg2 = out_snare;
+        msg2==in_sidestick ? new_msg2 = out_sidestick;
+        msg2==in_hh ? new_msg2 = hh_note;
+        msg2==in_tom_1_L || msg2==in_tom_1_R ? new_msg2 = out_tom_1;
+        msg2==in_tom_2_L || msg2==in_tom_2_R ? new_msg2 = out_tom_2;
+        msg2==in_cymbal_1 ? new_msg2 = out_cymbal_1;
+        msg2==in_cymbal_2 ? new_msg2 = out_cymbal_2;
+        msg2==in_ride_bow ? new_msg2 = out_ride_bow;
+        msg2==in_ride_bell ? new_msg2 = out_ride_bell;
+       
+        new_msg2 != -1 ? midisend(offset,msg1,new_msg2,msg3);
+
+    ) : (
+        msg1==cc && msg2==64 ? (
+            msg3==127 ? midisend(offset,note_on,out_kick_note,out_kick_vel);
+            msg3<127 ? midisend(offset,note_off,out_kick_note,0);
+        );
+        msg1==cc && (msg2==1 || msg2==in_hh_cc) ? (
+            msg3 >= HH_lvl0 ? hh_note = out_hh_tight;
+            msg3 < HH_lvl0 && msg3 >= HH_lvl1 ? hh_note = out_hh_closed;
+            msg3 < HH_lvl1 && msg3 > HH_lvl2 ? hh_note = out_hh_open_1;
+            msg3 <= HH_lvl2 && msg3 > HH_lvl3 ? hh_note = out_hh_open_2;
+            msg3 <= HH_lvl3 && msg3 > HH_lvl4 ? hh_note = out_hh_open_3;
+            msg3 <= HH_lvl4 ? hh_note = out_hh_open_4;
+        );
+
+    );
+);

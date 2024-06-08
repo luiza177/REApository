@@ -1,0 +1,11 @@
+Zone "Home"
+    IncludedZones
+        "Buttons"
+        "SelectedTrack" // SelectedTracks?
+    IncludedZonesEnd
+    AssociatedZones
+        "SelectedTrackSend"
+        "SelectedTrackReceive"
+        "MasterTrack"
+    AssociatedZonesEnd
+ZoneEnd

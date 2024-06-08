@@ -1,0 +1,75 @@
+Zone "NavigatorMarker"
+// ===========================================
+// BUTTONS AND SCROLL
+// ===========================================
+  Prev                         Reaper _SWS_SELPREVMORR // SWS: Goto/select previous marker/region
+  Next                         Reaper _SWS_SELNEXTMORR // SWS: Goto/select next marker/region
+
+  Shift+Prev                   Undo
+  Shift+Next                   Redo
+                
+  RotaryBigPush                Reaper 40171 // Markers: Insert and/or edit marker at current position
+  / Hold+RotaryBigPush           Reaper 40171 // Markers: Insert and/or edit marker at current position
+  Shift+RotaryBigPush          Reaper 40613 // Markers: Delete marker near cursor
+  
+  Increase+RotaryBig           Reaper 40837 // Move edit cursor to start of next measure (no seek)
+  Decrease+RotaryBig           Reaper 40838 // Move edit cursor to start of current measure (no seek)
+
+  Shift+Increase+RotaryBig     Reaper 1012 // View: Zoom in horizontal
+  Shift+Increase+RotaryBig     Reaper "_SWS_HSCROLL50"
+
+  Shift+Decrease+RotaryBig     Reaper 1011 // View: Zoom out horizontal
+  Shift+Decrease+RotaryBig     Reaper "_SWS_HSCROLL50"
+
+
+
+// ===========================================
+// All the button States and action
+// ===========================================
+    Link                    NoFeedback
+    Link                    LeaveSubZone
+    Link                    GoSubZone "FocusedFXParam"
+
+    Shift+Link              NoFeedback
+    Shift+Link              GoAssociatedZone SelectedTrackSend
+
+    Pan                     NoFeedback
+    Pan                     LeaveSubZone
+    Pan                     GoSubZone "NavigatorPan" 
+
+    Channel                 NoFeedback
+    Channel                 LeaveSubZone
+    Channel                 GoSubZone "NavigatorChannel"
+    
+    Scroll                  NoFeedback
+    Scroll                  LeaveSubZone
+    Scroll                  GoSubZone "NavigatorScroll"
+
+    Shift+Scroll            NoFeedback
+    Shift+Scroll            LeaveSubZone
+    Shift+Scroll            GoSubZone "NavigatorZoom"
+
+    Marker                  LeaveSubZone
+
+    Section                 NoFeedback
+    Section                 LeaveSubZone
+    Section                 GoSubZone "NavigatorSection"
+
+    Click                   Reaper 40364 // Toggle metronome
+    Hold+Click              Reaper 40363 // Show metronome settings
+
+    Master                  GoAssociatedZone MasterTrack
+
+// ===========================================
+// FUNCTION KEYS
+// ===========================================
+    // Function-Action-1
+    Shift+Master            Reaper 40326 // Show region/marker manager
+    // Function-Action-2 
+    Shift+Click             Reaper 40306 // Markers: Insert region from time selection and edit...
+    // Function-Action-3 
+    Shift+Section           Reaper 40078 // Show mixer
+    // Function-Action-4 
+    Shift+Marker            Reaper 40616 // Markers: Edit region near cursor
+
+ZoneEnd

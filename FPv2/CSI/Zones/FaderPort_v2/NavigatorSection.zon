@@ -1,0 +1,70 @@
+Zone "NavigatorSection"
+// ===========================================
+// BUTTONS AND SCROLL
+// ===========================================
+  Prev                          Reaper 40625 // Time selection: Set start point
+  Next                          Reaper 40626 // Time selection: Set end point
+
+  Shift+Prev                    Undo
+  Shift+Next                    Redo
+
+  // TODO: If no item is selected, select first item in selected track
+  Increase+RotaryBig            Reaper "_RSaac49fc844fcb401e70a933167559f68b35a77c5" // Smart nav forward
+  Decrease+RotaryBig            Reaper "_RSe04e48cb2ebd0e854f1536d8b8c12be90d0d5e8d" // Smart nav backwards
+  Shift+Increase+RotaryBig      Reaper "_RS702fc7bbb2debc08d06be7c20b9d9bbd4bbd9cf5" // Smart nav down
+  Shift+Decrease+RotaryBig      Reaper "_RSd521699621e3fc5223c96c69245431c6940786e7" // Smart nav up
+
+  RotaryBigPush                 Reaper 40638 // Item: Show FX chain for item take
+  Hold+RotaryBigPush            Reaper 40011 // Item properties: Show media item source properties
+  Shift+RotaryBigPush           Reaper "_S&M_TGL_TAKEFX_BYP" // SWS/S&M: Toggle all take FX bypass for selected items
+
+// ===========================================
+// All the button States and action
+// ===========================================
+  Link                    NoFeedback
+  Link                    LeaveSubZone
+  Link                    GoSubZone "FocusedFXParam"
+
+  Shift+Link              NoFeedback
+  Shift+Link              GoAssociatedZone SelectedTrackSend
+
+  Pan                     NoFeedback
+  Pan                     LeaveSubZone
+  Pan                     GoSubZone "NavigatorPan" 
+
+  Channel                 NoFeedback
+  Channel                 LeaveSubZone
+  Channel                 GoSubZone "NavigatorChannel"
+ 
+  Scroll                  NoFeedback
+  Scroll                  LeaveSubZone
+  Scroll                  GoSubZone "NavigatorScroll"
+
+  Shift+Scroll            NoFeedback
+  Shift+Scroll            LeaveSubZone
+  Shift+Scroll            GoSubZone "NavigatorZoom"
+
+  Marker                  NoFeedback
+  Marker                  LeaveSubZone
+  Marker                  GoSubZone "NavigatorMarker"
+
+  Section                 LeaveSubZone
+
+  Click                   Reaper 40364 // Toggle metronome
+  Hold+Click              Reaper 40363 // Show metronome settings
+
+  Master                  GoAssociatedZone MasterTrack
+
+// ===========================================
+// FUNCTION KEYS
+// ===========================================
+  // Function-Action-1
+  Shift+Master            Reaper 41250 // Item edit: Nudge left by last nudge dialog settings
+  // Function-Action-2 
+  Shift+Click             Reaper 41228 // Item edit: Toggle open/close nudge/set dialog
+  // Function-Action-3 
+  Shift+Section           Reaper 40078 // Show mixer
+  // Function-Action-4 
+  Shift+Marker            Reaper 41249 // Item edit: Nudge right by last nudge dialog settings
+
+ZoneEnd

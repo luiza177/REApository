@@ -1,0 +1,84 @@
+Zone "NavigatorChannel"
+// ===========================================
+// BUTTONS AND SCROLL
+// ===========================================
+  Prev                         Reaper 41326 // decrease track height
+  Prev                         Reaper 41326 // decrease track height
+  Prev                         Reaper 41326 // decrease track height
+  Prev                         Reaper 41326 // decrease track height
+  Next                         Reaper 41325 // increase track height
+  Next                         Reaper 41325 // increase track height
+  Next                         Reaper 41325 // increase track height
+  Next                         Reaper 41325 // increase track height
+
+  Shift+Prev                   Undo
+  Shift+Next                   Redo
+
+  RotaryBigPush                Reaper "_S&M_TOGLFXCHAIN" // SWS/S&M: Toggle show FX chain windows for selected tracks
+  // FIXME: sets volume to max
+  Hold+RotaryBigPush           TrackVolume [ 0.716 ]
+  
+  / Shift+Click           
+  Shift+RotaryBigPush          Reaper "_XENAK_TOGGLETRACKHEIAB" // track height
+  Hold+Shift+RotaryBigPush     Reaper 40723 // View: Expand selected track height, minimize others
+
+  Increase+RotaryBig           Reaper 40285 // next track
+  / Increase+RotaryBig           Bank SelectedTrack 1
+  Decrease+RotaryBig           Reaper 40286 // prev track
+  / Decrease+RotaryBig           Bank SelectedTrack -1
+  
+  Shift+Increase+RotaryBig     Reaper 40287 // select next track
+  Shift+Decrease+RotaryBig     Reaper 40288 // select prev track
+
+// ===========================================
+// All the button States and action
+// ===========================================
+  Link                    NoFeedback
+  Link                    LeaveSubZone
+  Link                    GoSubZone "FocusedFXParam"
+
+  Shift+Link              NoFeedback
+  Shift+Link              GoAssociatedZone SelectedTrackSend
+
+  Pan                     NoFeedback
+  Pan                     LeaveSubZone
+  Pan                     GoSubZone "NavigatorPan"
+
+  Channel                 FixedRGBColorDisplay { 0 55 255 }
+  Channel                 LeaveSubZone
+
+  Scroll                  NoFeedback
+  Scroll                  LeaveSubZone
+  Scroll                  GoSubZone "NavigatorScroll"
+
+  Shift+Scroll            NoFeedback
+  Shift+Scroll            LeaveSubZone
+  Shift+Scroll            GoSubZone "NavigatorZoom"
+
+  Marker                  NoFeedback
+  Marker                  LeaveSubZone
+  Marker                  GoSubZone "NavigatorMarker"
+
+  Section                 NoFeedback
+  Section                 LeaveSubZone
+  Section                 GoSubZone "NavigatorSection"
+
+  Click                   Reaper 40364 // Toggle metronome
+  Hold+Click              Reaper 40363 // Show metronome settings
+
+  Master                  GoAssociatedZone MasterTrack
+  
+// ===========================================
+// FUNCTION KEYS
+// ===========================================
+// Function-Action-1
+  Shift+Master              Reaper 1042 // cycle folder collapsed states
+// Function-Action-2 
+  / Shift+Click               Reaper 1041  // toggle folder state
+  Shift+Click               TrackVolume [ 0.716 ]
+// Function-Action-3 
+  Shift+Section             Reaper 40078 // Show mixer
+// Function-Action-4 
+  Shift+Marker              Reaper 40406 // toggle volume envelope
+
+ZoneEnd

@@ -1,0 +1,74 @@
+Zone "FocusedFXParam"
+// ===========================================
+// BUTTONS AND SCROLL
+// ===========================================
+    Prev                         Reaper 40286 // prev track
+    Next                         Reaper 40285 // next track
+    Shift+Prev                   Undo
+    Shift+Next                   Redo
+
+    // TODO: FX Link - Float FX of focused FX param?
+    RotaryBigPush                Reaper "_S&M_TOGLFXCHAIN" // SWS/S&M: Toggle show FX chain windows for selected tracks
+    Shift+RotaryBigPush          ToggleFXBypass
+    Hold+Shift+RotaryBigPush     ToggleFXOffline
+
+    Increase+RotaryBig           Reaper 40837  // Move edit cursor to start of next measure (no seek)
+    Decrease+RotaryBig           Reaper 40838  // Move edit cursor to start of current measure (no seek)
+
+    Shift+Increase+RotaryBig    Reaper "_S&M_SELFXNEXT" // SWS/S&M: Select next FX (cycling) for selected tracks
+    Shift+Decrease+RotaryBig    Reaper "_S&M_SELFXPREV" // SWS/S&M: Select previous FX (cycling) for selected tracks
+
+    Fader                       FocusedFXParam
+    Shift+Fader                 TrackVolume
+
+// ===========================================
+// All the button States and action
+// ===========================================
+    Link        	        FixedRGBColorDisplay { 200 255 255 }
+    Link        	        LeaveSubZone
+
+    / Shift+Link              NoFeedback
+    Shift+Link              GoAssociatedZone SelectedTrackSend
+
+    Pan                     NoFeedback
+    Pan                     LeaveSubZone
+    Pan                     GoSubZone "NavigatorPan"
+
+    Channel                 NoFeedback
+    Channel                 LeaveSubZone
+    Channel                 GoSubZone "NavigatorChannel"
+
+    Scroll                  NoFeedback
+    Scroll                  LeaveSubZone
+    Scroll                  GoSubZone "NavigatorScroll"
+
+    Shift+Scroll            NoFeedback
+    Shift+Scroll            LeaveSubZone
+    Shift+Scroll            GoSubZone "NavigatorZoom"
+
+    Marker                  NoFeedback
+    Marker                  LeaveSubZone
+    Marker                  GoSubZone "NavigatorMarker"
+
+    Section                 NoFeedback
+    Section                 LeaveSubZone
+    Section                 GoSubZone "NavigatorSection"
+
+    Click                 Reaper 40364 // Toggle metronome
+    Hold+Click            Reaper 40363 // Show metronome settings
+
+    Master                GoAssociatedZone MasterTrack
+
+// ===========================================
+// FUNCTION KEYS
+// ===========================================
+    // Function-Action-1
+    Shift+Master          Reaper Reaper 42455 // Delta solo last focused FX
+    // Function-Action-2 
+    Shift+Click           Reaper Reaper 40271 // Show FX Browser
+    // Function-Action-3 
+    Shift+Section         Reaper 40078 // Show mixer
+    // Function-Action-4 
+    Shift+Marker          Reaper 41984 // FX: Arm track envelope for last touched FX parameter
+
+ZoneEnd

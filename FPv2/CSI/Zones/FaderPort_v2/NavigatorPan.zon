@@ -1,0 +1,72 @@
+Zone "NavigatorPan"
+// ===========================================
+// BUTTONS AND SCROLL
+// ===========================================
+    Prev                         Reaper 40286 // prev track
+    Next                         Reaper 40285 // next track
+    Shift+Prev                   Undo
+    Shift+Next                   Redo
+
+    RotaryBigPush                TrackPan [ 0.5 ]
+    Shift+RotaryBigPush          TrackPanAutoRight [ 1.0 ]
+
+    Increase+RotaryBig           Reaper 40285 // next track
+    Decrease+RotaryBig           Reaper 40286 // prev track
+    
+    Shift+Increase+RotaryBig     Reaper 40837  // Move edit cursor to start of next measure (no seek)
+    Shift+Decrease+RotaryBig     Reaper 40838  // Move edit cursor to start of current measure (no seek)
+
+    Fader                       TrackPanAutoLeft
+    Shift+Fader                 TrackPanAutoRight
+
+// ===========================================
+// All the button States and action
+// ===========================================
+  Link                    NoFeedback
+  Link                    LeaveSubZone
+  Link                    GoSubZone "FocusedFXParam"
+
+  Shift+Link              NoFeedback
+  Shift+Link              GoAssociatedZone SelectedTrackSend
+  
+  Pan                     FixedRGBColorDisplay { 0 255 20 }
+  Pan                     LeaveSubZone
+
+  Channel                 NoFeedback
+  Channel                 LeaveSubZone
+  Channel                 GoSubZone "NavigatorChannel"
+ 
+  Scroll                  NoFeedback
+  Scroll                  LeaveSubZone
+  Scroll                  GoSubZone "NavigatorScroll"
+
+  Shift+Scroll            NoFeedback
+  Shift+Scroll            LeaveSubZone
+  Shift+Scroll            GoSubZone "NavigatorZoom"
+
+  Marker                  NoFeedback
+  Marker                  LeaveSubZone
+  Marker                  GoSubZone "NavigatorMarker"
+
+  Section                 NoFeedback
+  Section                 LeaveSubZone
+  Section                 GoSubZone "NavigatorSection"
+
+  Click                   Reaper 40364 // Toggle metronome
+  Hold+Click              Reaper 40363 // Show metronome settings
+
+  Master                  GoAssociatedZone MasterTrack
+    
+// ===========================================
+// FUNCTION KEYS
+// ===========================================
+    // Function-Action-1
+    Shift+Master              Reaper "_S&M_CYCLACTION_6" // cycle pan mode
+    // Function-Action-2 
+    Shift+Click               Reaper "_S&M_CYCLACTION_18"  // Toggle Hard Right/Left
+    // Function-Action-3 
+    Shift+Section             Reaper 40078 // Show mixer
+    // Function-Action-4 
+    Shift+Marker              Reaper 40407 // toggle track pan envelope
+
+ZoneEnd

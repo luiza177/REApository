@@ -1,0 +1,61 @@
+Zone "Buttons"
+
+
+   Shift   Shift
+
+// ===========================================
+// TRACK OPERATIONS
+// ===========================================
+    Mute                      TrackMute
+    Shift+Mute                Reaper 40339       // Track: Unmute all tracks
+    
+    Solo                      TrackSolo
+    Shift+Solo                Reaper 40340       // Track: Unsolo all tracks
+    Hold+Solo                 Reaper "_71789da7ead76746a69b5e3962546425"  // Custom: Solo exclusive
+    Hold+Shift+Solo           Reaper 40745       // Options: Solo in front
+    
+    Arm                       TrackRecordArm
+    / Shift+Arm                 Reaper 40490       // Track: Arm all tracks for recording // TODO: create toggling action, or something else, monitoring?
+    Shift+Arm                 Reaper 40495       // Track: Cycle track record monitor
+    Hold+Shift+Arm            Reaper 40491       // Track: Unarm all tracks for recording
+                    
+    Bypass                    Reaper 8           // Track: Toggle FX bypass for selected tracks
+    Shift+Bypass              Reaper 40344       // Track: Toggle FX bypass on all tracks
+
+// ===========================================
+// TRACK AUTOMATION
+// ===========================================
+    Touch           TrackAutoMode 2     { 20 20 0 255 255 0 }    // Touch
+    Write           TrackAutoMode 3     { 20 0 0 255 0 0 }       // Write
+    Read            TrackAutoMode 1     { 0 20 0 0 255 0 }       // Read
+
+    Shift+Touch     TrackAutoMode 4     { 5 0 20 53 0 255 }      // Latch
+    Shift+Write     TrackAutoMode 0     { 20 20 20 255 255 255 } // Trim
+    Shift+Read      TrackAutoMode 5     { 0 5 20 0 55 255 }      // Latch Preview
+
+
+// ===========================================
+// TRANSPORT
+// ===========================================
+    Loop                     CycleTimeline
+    / Shift+Loop               Reaper "_54440d3412c4431584ccb34d0a969b45" / punch-in / Toggle pre-roll // TODO: needs script??
+    Shift+Loop               Reaper 41819 // toggle pre-roll
+    
+    Rewind                   Rewind
+    Shift+Rewind             Reaper 40172 // prev Marker
+    
+    FastForward              FastForward
+    Shift+FastForward        Reaper 40173 // next Marker
+    
+    Play                     Play
+    
+    Stop                     Stop
+    Hold+Stop                Reaper 40042 // Transport: Go to start of project
+    
+    Record                   Record 
+    Shift+Record             Reaper "_RS359bd63916bb3ef4ca5503166d76dea7b6992a80" / Toggle zen-mode
+    
+    / Record                   Reaper "_RS2ee92013ae3ede3af26973bce1d8d7f0afb01197" // zen/smart record
+    / Play                     Reaper "" // zen/smart play
+    / Stop                     Reaper "" // zen/smart stop
+ZoneEnd
