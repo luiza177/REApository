@@ -1,4 +1,4 @@
--- @description Transpose notes down to next visible note in Custom Note Order mode
+-- @description Transpose notes in Custom Note Order mode
 -- @author Luiza177
 -- @version 1.0
 -- @provides
