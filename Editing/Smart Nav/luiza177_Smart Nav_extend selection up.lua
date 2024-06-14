@@ -7,8 +7,8 @@
 reaper.Undo_BeginBlock()
 
 package.path = package.path..';'..debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] .. "?.lua;"
-require('luiza177_Smart Nav')
+require('luiza177_Smart Nav_extend')
 
-local undo_str = SmartNav("up", true)
+local undo_str = SmartNav("up")
 
 reaper.Undo_EndBlock(undo_str, 0)

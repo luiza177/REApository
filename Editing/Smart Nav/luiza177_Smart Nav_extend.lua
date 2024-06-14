@@ -1,29 +1,38 @@
 -- @author Luiza177
 -- @noindex
 
-function SmartNav(direction, extendSelection)
-  local undo_string = "Smart Nav: "
-  if extendSelection then undo_string = undo_string.."extend " end
+-- USER AREA --------------------------------------------------------
+local set_time_selection = true
+
+-- FUNCTIONS --------------------------------------------------------
+package.path = package.path..';'..debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] .. "?.lua;"
+require('luiza177_Functions')
+
+-- -----------------------------------------------------------------------
+function SmartNav_extend(direction)
+  local undo_string = "Smart Nav: extend"
   local context = reaper.GetCursorContext()
   local cursorPos = reaper.GetCursorPosition()
 
   ------------------------------------------------- ENVELOPES
   if context == 2 then -- 0 if track panels, 1 if items, 2 if envelopes, otherwise unknown
-    getEnvelopePoints(cursorPos)
+    GetEnvelopePoints(cursorPos)
     undo_string = undo_string .. "selection to"
     if direction == "up" then
       undo_string = undo_string .. "previous envelope lane"
     elseif direction == "down" then
       undo_string = undo_string .. "next envelope lane"
     elseif direction == "forward" then
+      reaper.Main_OnCommand(reaper.NamedCommandLookup("_SWS_BRMOVEEDITTONEXTENVADDSELL"), 0) -- SWS/BR: Move edit cursor to next envelope point and add to selection
       undo_string = undo_string .. "next envelope point"
     elseif direction == "backward" then
+      reaper.Main_OnCommand(reaper.NamedCommandLookup("_SWS_BRMOVEEDITTOPEWVENVADDSELL"), 0) -- SWS/BR: Move edit cursor to previous envelope point and add to selection
       undo_string = undo_string .. "previous envelope point"
     else
     end
   else
   ------------------------------------------------- RAZOR EDITING
-    local razor_editing = getRazorEditStart()
+    local razor_editing = GetRazorEditStart()
     if razor_editing then
       undo_string = undo_string .. "Razor Edit "
       if direction == "up" then
