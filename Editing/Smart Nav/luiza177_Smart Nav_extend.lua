@@ -16,17 +16,23 @@ function SmartNav_extend(direction)
 
   ------------------------------------------------- ENVELOPES
   if context == 2 then -- 0 if track panels, 1 if items, 2 if envelopes, otherwise unknown
-    GetEnvelopePoints(cursorPos)
+    local selectedEnvelope = reaper.GetSelectedEnvelope(0)
     undo_string = undo_string .. "selection to"
     if direction == "up" then
-      undo_string = undo_string .. "previous envelope lane"
+      reaper.Main_OnCommand(41863, 0) -- Track: Select previous envelope
+      selectedEnvelope = reaper.GetSelectedEnvelope(0)
+      GetEnvelopePoints(selectedEnvelope, cursorPos)
+      undo_string = "Smart Nav: select previous envelope lane"
     elseif direction == "down" then
-      undo_string = undo_string .. "next envelope lane"
+      reaper.Main_OnCommand(41864, 0) -- Track: Select next envelope
+      selectedEnvelope = reaper.GetSelectedEnvelope(0)
+      GetEnvelopePoints(selectedEnvelope, cursorPos)
+      undo_string = "Smart Nav: select next envelope lane"
     elseif direction == "forward" then
-      reaper.Main_OnCommand(reaper.NamedCommandLookup("_SWS_BRMOVEEDITTONEXTENVADDSELL"), 0) -- SWS/BR: Move edit cursor to next envelope point and add to selection
+      ExtendEnvelopePointsSelection(selectedEnvelope, cursorPos, 1)
       undo_string = undo_string .. "next envelope point"
     elseif direction == "backward" then
-      reaper.Main_OnCommand(reaper.NamedCommandLookup("_SWS_BRMOVEEDITTOPEWVENVADDSELL"), 0) -- SWS/BR: Move edit cursor to previous envelope point and add to selection
+      ExtendEnvelopePointsSelection(selectedEnvelope, cursorPos, -1)
       undo_string = undo_string .. "previous envelope point"
     else
     end
@@ -63,6 +69,7 @@ function SmartNav_extend(direction)
         -- reaper.SetEditCurPos(cursorPos, true, false ) --move view, seek play
         undo_string = undo_string .. "item in next track"
       elseif direction == "forward" then
+        -- TODO: do this manually
         reaper.Main_OnCommand(reaper.NamedCommandLookup("_SWS_ADDRIGHTITEM"), 0) -- SWS: Add item(s) to right of selected item(s) to selection
         if set_time_selection then reaper.Main_OnCommand(40290, 0) end -- Time selection: Set time selection to items
         undo_string = undo_string .. "next item"

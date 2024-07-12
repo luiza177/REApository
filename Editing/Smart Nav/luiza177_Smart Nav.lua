@@ -21,11 +21,11 @@
 -- [main] luiza177_Smart Nav_extend selection down.lua
 -- [main] luiza177_Smart Nav_extend selection backward.lua
 -- [main] luiza177_Smart Nav_extend selection forward.lua
--- @noindex
+
 -- ------------------------------------------------------------------
 
 -- USER AREA --------------------------------------------------------
-local set_time_selection = true
+local set_time_selection = false
 
 -- FUNCTIONS --------------------------------------------------------
 package.path = package.path..';'..debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] .. "?.lua;"
@@ -39,16 +39,16 @@ function SmartNav(direction)
 
   ------------------------------------------------- ENVELOPES
   if context == 2 then -- 0 if track panels, 1 if items, 2 if envelopes, otherwise unknown
-    GetEnvelopePoints(cursorPos)
+    local selectedEnvelope = reaper.GetSelectedEnvelope(0)
+    GetEnvelopePoints(selectedEnvelope, cursorPos)
     undo_string = undo_string .. "selection to"
     if direction == "up" then
-      reaper.Main_OnCommand(41863, 0) -- Track: Select previous envelope
-      undo_string = undo_string .. "previous envelope lane"
+      reaper.Main_OnCommand(41180, 0) -- Envelopes: Move selected points up a little bit
+      undo_string = "Envelopes: Move selected points up a little bit"
     elseif direction == "down" then
-      reaper.Main_OnCommand(41864, 0) -- Track: Select next envelope
-      undo_string = undo_string .. "next envelope lane"
+      reaper.Main_OnCommand(41181, 0) -- Envelopes: Move selected points down a little bit
+      undo_string = "Envelopes: Move selected points down a little bit"
     elseif direction == "forward" then
-    -- TODO
       reaper.Main_OnCommand(reaper.NamedCommandLookup("_BR_ENV_SEL_NEXT_POINT"), 0) -- SWS/BR: Select next envelope point
       undo_string = undo_string .. "next envelope point"
     elseif direction == "backward" then
