@@ -1,6 +1,6 @@
 -- @description Transpose notes down to next visible note in Custom Note Order mode
 -- @author Luiza177
--- @version 1.1
+-- @version 1.2
 -- @provides
 --   [nomain] .
 --   [main] luiza177_Transpose down to previous note in custom view.lua

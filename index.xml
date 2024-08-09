@@ -65,13 +65,13 @@
 }
 ]]></description>
       </metadata>
-      <version name="1.0" author="Luiza177" time="2024-06-10T12:55:47Z">
+      <version name="1.1" author="Luiza177" time="2024-06-10T12:55:47Z">
         <changelog><![CDATA[Separated into external module]]></changelog>
         <source>https://github.com/luiza177/REApository/raw/b96fc15a9becc7264896df471b75614a82151e9a/MIDI%20Editor/Custom%20note%20order%20view%20transpose/luiza177_Custom%20note%20order%20view%20transpose.lua</source>
         <source main="midi_editor" file="luiza177_Transpose down to previous note in custom view.lua">https://github.com/luiza177/REApository/raw/b96fc15a9becc7264896df471b75614a82151e9a/MIDI%20Editor/Custom%20note%20order%20view%20transpose/luiza177_Transpose%20down%20to%20previous%20note%20in%20custom%20view.lua</source>
         <source main="midi_editor" file="luiza177_Transpose up to next note in custom view.lua">https://github.com/luiza177/REApository/raw/b96fc15a9becc7264896df471b75614a82151e9a/MIDI%20Editor/Custom%20note%20order%20view%20transpose/luiza177_Transpose%20up%20to%20next%20note%20in%20custom%20view.lua</source>
       </version>
-      <version name="1.1" author="Luiza177" time="2024-08-09T14:13:27Z">
+      <version name="1.2" author="Luiza177" time="2024-08-09T14:13:27Z">
         <changelog><![CDATA[Added workaround for note preview. Needs ALL options for previewing notes (except for "Preview all selected notes that overlap with the edited note (when preview is enabled)", which is irrelevant) must be enabled]]></changelog>
         <source>https://github.com/luiza177/REApository/raw/9b485d3eaa9bd46e234dfd02e343641641c961d2/MIDI%20Editor/Custom%20note%20order%20view%20transpose/luiza177_Custom%20note%20order%20view%20transpose.lua</source>
         <source main="midi_editor" file="luiza177_Transpose down to previous note in custom view.lua">https://github.com/luiza177/REApository/raw/9b485d3eaa9bd46e234dfd02e343641641c961d2/MIDI%20Editor/Custom%20note%20order%20view%20transpose/luiza177_Transpose%20down%20to%20previous%20note%20in%20custom%20view.lua</source>
