@@ -1,13 +1,13 @@
 -- @description Transpose notes down to next visible note in Custom Note Order mode
 -- @author Luiza177
--- @version 1.0
+-- @version 1.1
 -- @provides
 --   [nomain] .
 --   [main] luiza177_Transpose down to previous note in custom view.lua
 --   [main] luiza177_Transpose up to next note in custom view.lua
 -- @about Transpose MIDI notes up or down to next visible note in Custom Note Order view (or just transpose notes by a semitone)
 -- @changelog
---    Separated into external module
+--    Added workaround for note preview. Needs ALL options for previewing notes (except for "Preview all selected notes that overlap with the edited note (when preview is enabled)", which is irrelevant) must be enabled
 
 -- FUNCTIONS ----------------------------------------------------------------
 local function findNoteinCustomNames(num, customNoteNames)
