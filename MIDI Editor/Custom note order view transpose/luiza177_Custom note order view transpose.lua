@@ -1,4 +1,4 @@
--- @description Transpose notes in Custom Note Order mode
+-- @description Transpose notes down to next visible note in Custom Note Order mode
 -- @author Luiza177
 -- @version 1.0
 -- @provides
@@ -53,27 +53,32 @@ function TransposeCustom(upOrDown) -- 1 or -1
         else 
             reaper.MIDIEditor_OnCommand(midiEditor, 40177) -- Edit: Move notes up one semitone
         end
-        return
-    end
-    
-    -- Drum Transpose
-    local take = reaper.MIDIEditor_GetTake(midiEditor)
-    
-    local nextNoteIdx = -1
-    local isFirstSelectedNote = true
-    
-    while nextNoteIdx ~= -1 or isFirstSelectedNote do
-        isFirstSelectedNote = false
-        nextNoteIdx = reaper.MIDI_EnumSelNotes(take, nextNoteIdx)
+    else
+        -- Drum Transpose
+        local take = reaper.MIDIEditor_GetTake(midiEditor)
         
-        local retval, selected, muted, start, ends, channel, pitch, vel = reaper.MIDI_GetNote(take, nextNoteIdx)
+        local nextNoteIdx = -1
+        local isFirstSelectedNote = true
         
-        -- find next note number in array
-        local customIdx = findNoteinCustomNames(pitch, customNoteOrder)
-        if customIdx ~= -1 then
-            -- set note pitch to next note
-            -- Set MIDI note properties. Properties passed as NULL (or negative values) will not be set. Set noSort if setting multiple events, then call MIDI_Sort when done. Setting multiple note start positions at once is done more safely by deleting and re-inserting the notes.
-            reaper.MIDI_SetNote(take, nextNoteIdx, true, muted, -1, -1, -1, customNoteOrder[customIdx + upOrDown], -1, true)
+        while nextNoteIdx ~= -1 or isFirstSelectedNote do
+            isFirstSelectedNote = false
+            nextNoteIdx = reaper.MIDI_EnumSelNotes(take, nextNoteIdx)
+            
+            local retval, selected, muted, start, ends, channel, pitch, vel = reaper.MIDI_GetNote(take, nextNoteIdx)
+            
+            -- find next note number in array
+            local customIdx = findNoteinCustomNames(pitch, customNoteOrder)
+            if customIdx ~= -1 then
+                -- set note pitch to next note
+                -- Set MIDI note properties. Properties passed as NULL (or negative values) will not be set. Set noSort if setting multiple events, then call MIDI_Sort when done. Setting multiple note start positions at once is done more safely by deleting and re-inserting the notes.
+                reaper.MIDI_SetNote(take, nextNoteIdx, true, muted, -1, -1, -1, customNoteOrder[customIdx + upOrDown], -1, true)
+            end
         end
+    -- workaround for note preview
+    -- NOTE: ALL options for previewing notes (except for "Preview all selected notes that overlap with the edited note (when preview is enabled)", which is irrelevant) must be enabled
+    reaper.PreventUIRefresh(1)
+    reaper.MIDIEditor_OnCommand(midiEditor, 40464) --Edit: Note velocity -01
+    reaper.MIDIEditor_OnCommand(midiEditor, 40462) --Edit: Note velocity +01
+    reaper.PreventUIRefresh(-1)
     end
 end
