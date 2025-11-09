@@ -59,14 +59,15 @@ function TransposeCustom(upOrDown) -- 1 or -1
     end
 
     -- reaper.ShowConsoleMsg("Drum Transpose\n")
-    local track = reaper.GetSelectedTrack(0, 0)
+    local take = reaper.MIDIEditor_GetTake(midiEditor)
+    local item = reaper.GetMediaItemTake_Item(take)
+    local track = reaper.GetMediaItem_Track(item)
     local customNoteOrder = getCustomNoteOrder(track)
     if #customNoteOrder == 0 then
         -- reaper.ShowConsoleMsg("No custom note order\n")
         doNativeTranspose(midiEditor, upOrDown)
         return
     end
-    local take = reaper.MIDIEditor_GetTake(midiEditor)
     
     local nextNoteIdx = -1
     local isFirstSelectedNote = true
