@@ -21,6 +21,7 @@ local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 -- TODO: remember state when quit
 
 -- UI
+-- TODO: clear solo when not should_solo and go to other track
 -- TODO: allow drag select
 -- TODO: allow toggling folder state
 -- TODO: keyboard workflow
@@ -30,7 +31,7 @@ local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
-local focused_tracks = {}
+local clicked_tracks = {}
 
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
@@ -98,7 +99,7 @@ local function GetAllTracksToFocus()
 			show_all_depth = nil
 		end
 
-		if focused_tracks[track] == true then
+		if clicked_tracks[track] == true then
 			all_focused_tracks[track] = true
 			-- reaper.ShowConsoleMsg("\n   add track")
 			if folder_state == 1 then
@@ -115,7 +116,7 @@ local function GetAllTracksToFocus()
 	return all_focused_tracks
 end
 
-local function FocusSelected()
+local function FocusSelected(should_solo)
 	local focused_tracks_and_children = GetAllTracksToFocus()
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track = reaper.GetTrack(0, i)
@@ -128,9 +129,15 @@ local function FocusSelected()
 				reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
 				reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 1)
 			end
+			if should_solo then
+				reaper.SetMediaTrackInfo_Value(track, "I_SOLO", 1)
+			end
 		else
 			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 0)
 			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 0)
+			if should_solo then
+				reaper.SetMediaTrackInfo_Value(track, "I_SOLO", 0)
+			end
 		end
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
@@ -202,7 +209,7 @@ local function loop()
 
 					local is_selected
 					if focus_view then
-						is_selected = focused_tracks[track] == true
+						is_selected = clicked_tracks[track] == true
 					else
 						is_selected = reaper.IsTrackSelected(track)
 					end
@@ -220,34 +227,46 @@ local function loop()
 						local mods = ImGui.GetKeyMods(ctx)
 
 						local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
-						if not ctrl_held then
-							focused_tracks = {}
-						end
 						-- local shift_held = (mods & ImGui.Mod_Shift) ~= 0
+						local alt_held = (mods & ImGui.Mod_Alt) ~= 0
+						local should_solo = alt_held or solo_selected
 
 						if focus_view then
-							if focused_tracks[track] == true then
-								focused_tracks[track] = nil
-							else
-								focused_tracks[track] = true
+							local unselect = false
+							if not ctrl_held then
+								if clicked_tracks[track] then
+									unselect = true
+								end
+								clicked_tracks = {}
+								reaper.SetOnlyTrackSelected(track)
 							end
 
-							if next(focused_tracks) == nil then
+							if clicked_tracks[track] == true or unselect then
+								clicked_tracks[track] = nil
+							else
+								clicked_tracks[track] = true
+							end
+
+							if next(clicked_tracks) == nil then
 								RestoreAllState()
 							else
-								FocusSelected()
+								FocusSelected(should_solo)
 							end
 						else
-							if reaper.IsTrackSelected(track) then
-								reaper.SetTrackSelected(track, false)
+							if ctrl_held then
+								if reaper.IsTrackSelected(track) then
+									reaper.SetTrackSelected(track, false)
+								else
+									reaper.SetTrackSelected(track, true)
+								end
 							else
-								reaper.SetTrackSelected(track, true)
+								reaper.SetOnlyTrackSelected(track)
 							end
-							reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
+							if should_solo then
+								SoloExclusive()
+							end
 						end
-						if solo_selected then
-							SoloExclusive()
-						end
+						reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 					end
 					---------------------------------------------
 
@@ -277,7 +296,6 @@ local function loop()
 			focus_view = focus_new
 		end
 
-		-- TODO: implement
 		local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
 		if solo_selected_change then
 			solo_selected = solo_selected_new
