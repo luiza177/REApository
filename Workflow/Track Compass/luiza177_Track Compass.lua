@@ -32,7 +32,8 @@ local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
-local focused_track = nil
+-- local focused_track = nil
+local focused_tracks = {}
 
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
@@ -76,39 +77,93 @@ local function RestoreAllState()
 		end
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
-	focused_track = nil
+	-- focused_track = nil
+	focused_tracks = {}
 	-- reaper.ShowConsoleMsg("\nrestored all state")
 end
 
-local function FocusSelected(target)
-	reaper.SetOnlyTrackSelected(target)
+-- local function FocusSelected(target)
+--     reaper.SetOnlyTrackSelected(target)
 
-	local is_folder_parent = reaper.GetMediaTrackInfo_Value(target, "I_FOLDERDEPTH") == 1
-	if is_folder_parent then
-		local select_children_cmd = reaper.NamedCommandLookup("_SWS_SELCHILDREN2") -- SWS: Select children of selected folder track(s)
-		reaper.Main_OnCommand(select_children_cmd, 0)
-		reaper.TrackList_AdjustWindows(false)
-	end
+--     local is_folder_parent = reaper.GetMediaTrackInfo_Value(target, 'I_FOLDERDEPTH') == 1
+--     if is_folder_parent then
+--         local select_children_cmd = reaper.NamedCommandLookup("_SWS_SELCHILDREN2") -- SWS: Select children of selected folder track(s)
+--         reaper.Main_OnCommand(select_children_cmd, 0)
+--         reaper.TrackList_AdjustWindows(false)
 
-	for i = 0, reaper.CountSelectedTracks(0) - 1 do
-		local track = reaper.GetSelectedTrack(0, i)
-		local saved_track_state = all_snapshot[track]
-		if saved_track_state then
-			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", all_snapshot[track].show_tcp)
-			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", all_snapshot[track].show_mcp)
-		else
-			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
-			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 1)
+--     end
+
+--     for i = 0, reaper.CountSelectedTracks(0) - 1 do
+--         local track = reaper.GetSelectedTrack(0, i)
+--         local saved_track_state = all_snapshot[track]
+--         if saved_track_state then
+--             reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", all_snapshot[track].show_tcp)
+--             reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", all_snapshot[track].show_mcp)
+--         else
+--             reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
+--             reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 1)
+--         end
+--     end
+
+--     -- --! going to be a problem for multi select?
+--     local invert_selection_cmd = reaper.NamedCommandLookup("_SWS_TOGTRACKSEL") -- SWS: Toggle (invert) track selection
+--     reaper.Main_OnCommand(invert_selection_cmd, 0)
+--     reaper.Main_OnCommand(41593, 0) -- Track: Hide tracks in TCP and mixer
+--     -- TODO: account for MCP-only tracks/sends
+
+--     reaper.SetOnlyTrackSelected(target)
+-- end
+
+local function GetAllTracksToFocus()
+	local all_focused_tracks = {}
+	local depth = 0
+	local active_depth = nil
+
+	for i = 0, reaper.CountTracks(0) - 1 do
+		local track = reaper.GetTrack(0, i)
+		local folder_depth = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH")
+
+		if active_depth ~= nil and depth <= active_depth then
+			active_depth = nil
+		end
+
+		if focused_tracks[track] == true then
+			all_focused_tracks[track] = true
+			if folder_depth == 1 then
+				active_depth = depth
+			end
+		elseif active_depth ~= nil then
+			all_focused_tracks[track] = true
+		end
+
+		depth = depth + folder_depth
+		if depth < 0 then
+			depth = 0
 		end
 	end
 
-	-- --! going to be a problem for multi select?
-	local invert_selection_cmd = reaper.NamedCommandLookup("_SWS_TOGTRACKSEL") -- SWS: Toggle (invert) track selection
-	reaper.Main_OnCommand(invert_selection_cmd, 0)
-	reaper.Main_OnCommand(41593, 0) -- Track: Hide tracks in TCP and mixer
-	-- TODO: account for MCP-only tracks/sends
+	return all_focused_tracks
+end
 
-	reaper.SetOnlyTrackSelected(target)
+local function FocusSelected()
+	local focused_tracks_and_children = GetAllTracksToFocus()
+	for i = 0, reaper.CountTracks(0) - 1 do
+		local track = reaper.GetTrack(0, i)
+		if focused_tracks_and_children[track] == true then
+			local saved_track_state = all_snapshot[track]
+			if saved_track_state then
+				reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", all_snapshot[track].show_tcp)
+				reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", all_snapshot[track].show_mcp)
+			else
+				reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
+				reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 1)
+			end
+		else
+			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 0)
+			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 0)
+		end
+	end
+	reaper.TrackList_AdjustWindows(false) -- actually show changes
 end
 
 ---------------------------------------------------------------------------
@@ -177,7 +232,8 @@ local function loop()
 
 					local is_selected
 					if focus_view then
-						is_selected = (track == focused_track)
+						-- is_selected = (track == focused_track)
+						is_selected = focused_tracks[track] == true
 					else
 						is_selected = reaper.IsTrackSelected(track)
 					end
@@ -192,11 +248,18 @@ local function loop()
 							ImGui.SelectableFlags_SpanAllColumns
 						)
 					then
-						reaper.SetOnlyTrackSelected(track) --! probably going to be be a problem on multiple selections
-
 						if focus_view then
-							focused_track = track
-							FocusSelected(track)
+							if focused_tracks[track] == true then
+								focused_tracks[track] = nil
+							else
+								focused_tracks[track] = true
+							end
+
+							if next(focused_tracks) == nil then
+								RestoreAllState()
+							else
+								FocusSelected()
+							end
 						else
 							reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 						end
