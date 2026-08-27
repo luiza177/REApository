@@ -21,7 +21,6 @@ local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 -- TODO: remember state when quit
 
 -- UI
--- TODO: allow multi-select in nav mode
 -- TODO: allow drag select
 -- TODO: allow toggling folder state
 -- TODO: keyboard workflow
@@ -218,6 +217,14 @@ local function loop()
 							ImGui.SelectableFlags_SpanAllColumns
 						)
 					then
+						local mods = ImGui.GetKeyMods(ctx)
+
+						local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
+						if not ctrl_held then
+							focused_tracks = {}
+						end
+						-- local shift_held = (mods & ImGui.Mod_Shift) ~= 0
+
 						if focus_view then
 							if focused_tracks[track] == true then
 								focused_tracks[track] = nil
