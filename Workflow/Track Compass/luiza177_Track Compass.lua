@@ -17,11 +17,9 @@ local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 -- FUNCTIONALITY
 -- ? TODO: don't touch MCP-only tracks? (AKA sends)
 -- TODO: ACCOUNT FOR TRACKS THAT GET CREATED LATER for ALL state
--- TODO: preference for unsoloing when ALL is restored
 -- TODO: remember state when quit
 
 -- UI
--- TODO: clear solo when not should_solo and go to other track
 -- TODO: allow drag select
 -- TODO: allow toggling folder state
 -- TODO: keyboard workflow
@@ -32,6 +30,7 @@ local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
 local clicked_tracks = {}
+local last_alt_click = false
 
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
@@ -39,8 +38,11 @@ local focus_view = true
 local solo_selected = false
 
 ---------------------------------------------------------------------------
+local function UnsoloAll()
+	reaper.Main_OnCommand(40340, 0)
+end -- Track: Unsolo all tracks
 local function SoloExclusive()
-	reaper.Main_OnCommand(40340, 0) -- Track: Unsolo all tracks
+	UnsoloAll()
 	reaper.Main_OnCommand(40728, 0) -- Track: Solo tracks
 end
 
@@ -72,7 +74,7 @@ local function RestoreAllState()
 		end
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
-	focused_tracks = {}
+	UnsoloAll()
 end
 
 local function GetAllTracksToFocus()
@@ -233,13 +235,16 @@ local function loop()
 
 						if focus_view then
 							local unselect = false
+							if last_alt_click and not alt_held then
+								UnsoloAll()
+							end
 							if not ctrl_held then
 								if clicked_tracks[track] then
 									unselect = true
 								end
 								clicked_tracks = {}
-								reaper.SetOnlyTrackSelected(track)
 							end
+							reaper.SetOnlyTrackSelected(track)
 
 							if clicked_tracks[track] == true or unselect then
 								clicked_tracks[track] = nil
@@ -252,6 +257,7 @@ local function loop()
 							else
 								FocusSelected(should_solo)
 							end
+							last_alt_click = alt_held
 						else
 							if ctrl_held then
 								if reaper.IsTrackSelected(track) then
@@ -299,6 +305,9 @@ local function loop()
 		local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
 		if solo_selected_change then
 			solo_selected = solo_selected_new
+			if not solo_selected_new then
+				UnsoloAll()
+			end
 		end
 		---------------------
 
