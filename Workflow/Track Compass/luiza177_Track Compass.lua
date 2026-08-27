@@ -1,5 +1,5 @@
 if not reaper.ImGui_GetBuiltinPath then
-	return reaper.MB("ReaImGui is not installed or too old.", "My script", 0)
+	return reaper.MB("ReaImGui is not installed or too old.", "Track Compass", 0)
 end
 
 package.path = reaper.ImGui_GetBuiltinPath() .. "/?.lua;" .. package.path
@@ -21,7 +21,6 @@ local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 -- TODO: remember state when quit
 
 -- UI
--- TODO: allow multi-select in focus mode
 -- TODO: allow multi-select in nav mode
 -- TODO: allow drag select
 -- TODO: allow toggling folder state
@@ -32,7 +31,6 @@ local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
--- local focused_track = nil
 local focused_tracks = {}
 
 ----------------------------------------------------------------------------
@@ -60,9 +58,6 @@ local function CaptureAllState()
 		local track = reaper.GetTrack(0, i)
 		local show_tcp = reaper.GetMediaTrackInfo_Value(track, "B_SHOWINTCP")
 		local show_mcp = reaper.GetMediaTrackInfo_Value(track, "B_SHOWINMIXER")
-		-- reaper.ShowConsoleMsg("\ntrack: " .. GetTrackName(track) .. "\n")
-		-- reaper.ShowConsoleMsg("   TCP: " .. show_tcp .. "\n")
-		-- reaper.ShowConsoleMsg("   MCP: " .. show_mcp .. "\n")
 		all_snapshot[track] = { show_tcp = show_tcp, show_mcp = show_mcp }
 	end
 end
@@ -77,69 +72,45 @@ local function RestoreAllState()
 		end
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
-	-- focused_track = nil
 	focused_tracks = {}
-	-- reaper.ShowConsoleMsg("\nrestored all state")
 end
-
--- local function FocusSelected(target)
---     reaper.SetOnlyTrackSelected(target)
-
---     local is_folder_parent = reaper.GetMediaTrackInfo_Value(target, 'I_FOLDERDEPTH') == 1
---     if is_folder_parent then
---         local select_children_cmd = reaper.NamedCommandLookup("_SWS_SELCHILDREN2") -- SWS: Select children of selected folder track(s)
---         reaper.Main_OnCommand(select_children_cmd, 0)
---         reaper.TrackList_AdjustWindows(false)
-
---     end
-
---     for i = 0, reaper.CountSelectedTracks(0) - 1 do
---         local track = reaper.GetSelectedTrack(0, i)
---         local saved_track_state = all_snapshot[track]
---         if saved_track_state then
---             reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", all_snapshot[track].show_tcp)
---             reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", all_snapshot[track].show_mcp)
---         else
---             reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
---             reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 1)
---         end
---     end
-
---     -- --! going to be a problem for multi select?
---     local invert_selection_cmd = reaper.NamedCommandLookup("_SWS_TOGTRACKSEL") -- SWS: Toggle (invert) track selection
---     reaper.Main_OnCommand(invert_selection_cmd, 0)
---     reaper.Main_OnCommand(41593, 0) -- Track: Hide tracks in TCP and mixer
---     -- TODO: account for MCP-only tracks/sends
-
---     reaper.SetOnlyTrackSelected(target)
--- end
 
 local function GetAllTracksToFocus()
 	local all_focused_tracks = {}
 	local depth = 0
-	local active_depth = nil
+	local show_all_depth = nil
+
+	-- reaper.ShowConsoleMsg("\nSTART\n")
 
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track = reaper.GetTrack(0, i)
-		local folder_depth = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH")
+		-- reaper.ShowConsoleMsg("\n" .. i .. " " .. GetTrackName(track))
+		local folder_state = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH")
+		-- reaper.ShowConsoleMsg("\n current depth: " .. depth )
+		-- reaper.ShowConsoleMsg("\n folder_state: " .. folder_state )
+		-- reaper.ShowConsoleMsg("\n show_all_depth: " .. tostring(show_all_depth))
 
-		if active_depth ~= nil and depth <= active_depth then
-			active_depth = nil
+		if show_all_depth ~= nil and depth >= show_all_depth then
+			-- reaper.ShowConsoleMsg("\n   adding track and continuing")
+			all_focused_tracks[track] = true
+			goto continue
+		elseif show_all_depth ~= nil and depth < show_all_depth then
+			-- reaper.ShowConsoleMsg("\n   depth fell below show all, resetting to nil")
+			show_all_depth = nil
 		end
 
 		if focused_tracks[track] == true then
 			all_focused_tracks[track] = true
-			if folder_depth == 1 then
-				active_depth = depth
+			-- reaper.ShowConsoleMsg("\n   add track")
+			if folder_state == 1 then
+				show_all_depth = depth + folder_state
+				-- reaper.ShowConsoleMsg(" and setting show_all_depth to " .. show_all_depth)
 			end
-		elseif active_depth ~= nil then
-			all_focused_tracks[track] = true
 		end
 
-		depth = depth + folder_depth
-		if depth < 0 then
-			depth = 0
-		end
+		::continue::
+
+		depth = depth + folder_state
 	end
 
 	return all_focused_tracks
@@ -232,7 +203,6 @@ local function loop()
 
 					local is_selected
 					if focus_view then
-						-- is_selected = (track == focused_track)
 						is_selected = focused_tracks[track] == true
 					else
 						is_selected = reaper.IsTrackSelected(track)
@@ -261,6 +231,11 @@ local function loop()
 								FocusSelected()
 							end
 						else
+							if reaper.IsTrackSelected(track) then
+								reaper.SetTrackSelected(track, false)
+							else
+								reaper.SetTrackSelected(track, true)
+							end
 							reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 						end
 						if solo_selected then
