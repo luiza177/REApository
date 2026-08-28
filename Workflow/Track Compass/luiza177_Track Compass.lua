@@ -1,6 +1,6 @@
 -- @description A fast and efficient way to navigate and focus in large projects.
--- @author Luiza177
 -- @version 0.0.1
+-- @author Luiza177
 -- @about
 -- # Track Compass
 -- Inspired by LKC Tools Project Navigator, Track Compass allows you to focus on only the tracks you're working on without extra clutter.
@@ -34,7 +34,7 @@
 -- - expand/collapse folders
 -- - represent track color in list
 -- @changelog
---   - init
+--   initial release
 -- @provides
 -- [main] .
 
