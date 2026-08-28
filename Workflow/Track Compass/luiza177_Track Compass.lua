@@ -8,24 +8,38 @@ local ImGui = require("imgui")("0.10")
 local ctx = ImGui.CreateContext("Track Compass")
 local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 
--- UI
--- TODO: resize from edges
+-- GENERAL
 -- TODO: tooltip delay longer and stationary
--- TODO: dock
--- TODO: different color selection highlight for nav and focus mode
+-- clean up colors
+-- refactor
+-- optimize
 
 -- FUNCTIONALITY
--- ? TODO: don't touch MCP-only tracks? (AKA sends)
--- TODO: ACCOUNT FOR TRACKS THAT GET CREATED LATER for ALL state
+-- TODO: option to leave PINNED tracks alone
+-- TODO: option to hide tracks with hidden TCP
 -- TODO: remember state when quit
+-- later
+-- TODO: Auto monitoring of new tracks
 
--- UI
+-- WORKFLOW
+-- TODO: ignore non-shortcut key commands
 -- TODO: allow drag select
--- TODO: allow toggling folder state
+-- TODO: allow toggling folder state -- needs changing from Listbox to (selectable) Tree
 -- TODO: keyboard workflow
 -- -- arrow or vim navigation
 -- -- shortcuts to focus main reaper window and ImGui window / back and forth
+-- later
 -- TODO: search + shortcuts
+-- ? scroll to content?
+-- TODO: represent solo state in list
+-- ? display track number?
+
+-- STYLE
+-- TODO: call attention to solo mode
+-- later
+-- TODO: represent pinned track
+-- TODO: track color in selectable
+-- TODO: ensure readable text
 
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
@@ -38,6 +52,84 @@ local focus_view = true
 local solo_selected = false
 
 ---------------------------------------------------------------------------
+local function SetAlpha(color, alpha)
+	-- alpha: 0.0 (fully transparent) to 1.0 (fully opaque)
+	local alpha_byte = math.floor(alpha * 255 + 0.5)
+	return (color & 0xFFFFFF00) | alpha_byte
+end
+
+local function Darken(color, amount)
+	-- amount: 0.0 (no change) to 1.0 (fully black). Preserves existing alpha.
+	local r = (color >> 24) & 0xFF
+	local g = (color >> 16) & 0xFF
+	local b = (color >> 8) & 0xFF
+	local a = color & 0xFF
+
+	r = math.floor(r * (1 - amount))
+	g = math.floor(g * (1 - amount))
+	b = math.floor(b * (1 - amount))
+
+	return (r << 24) | (g << 16) | (b << 8) | a
+end
+
+local function Lighten(color, amount)
+	-- amount: 0.0 (no change) to 1.0 (fully white). Preserves existing alpha.
+	local r = (color >> 24) & 0xFF
+	local g = (color >> 16) & 0xFF
+	local b = (color >> 8) & 0xFF
+	local a = color & 0xFF
+
+	r = math.floor(r + (255 - r) * amount)
+	g = math.floor(g + (255 - g) * amount)
+	b = math.floor(b + (255 - b) * amount)
+
+	return (r << 24) | (g << 16) | (b << 8) | a
+end
+
+-- local function GetReadableTextColor(bg_color, light_color, dark_color)
+--     -- bg_color: 0xRRGGBBAA background color to check against
+--     -- light_color/dark_color: optional overrides (default white/black), same 0xRRGGBBAA format
+--     light_color = light_color or 0xFFFFFFFF
+--     dark_color = dark_color or 0x000000FF
+
+--     local r = (bg_color >> 24) & 0xFF
+--     local g = (bg_color >> 16) & 0xFF
+--     local b = (bg_color >> 8) & 0xFF
+
+--     -- perceived brightness (weighted for human eye sensitivity: green reads brightest, blue darkest)
+--     local brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+
+--     if brightness > 0.5 then
+--         return dark_color -- light background -> dark text
+--     else
+--         return light_color -- dark background -> light text
+--     end
+-- end
+
+local function ToImGuiColor(color)
+	local converted = ImGui.ColorConvertNative(color)
+	return (converted << 8 | 0xFF)
+end
+
+local function CaptureCurrentTheme()
+	Theme_colors = {}
+	local bg_color = reaper.GetThemeColor("col_main_bg2", 0) -- or col_main_bg, col_main_bg2, windowtab_bg
+	local bg2_color = reaper.GetThemeColor("col_tracklistbg", 0) -- or genlist_bg, col_tracklistbg
+	local primary_color = reaper.GetThemeColor("genlist_selbg", 0) -- or col_toolbar_text_on, genlist_selbg, col_cursor
+	local secondary_color = reaper.GetThemeColor("playcursor_color", 0)
+	local text_color = reaper.GetThemeColor("col_tcp_text", 0)
+	local automation_recording = reaper.GetThemeColor("col_fadearm", 0)
+
+	Theme_colors = {
+		bg_color = ToImGuiColor(bg_color),
+		bg2_color = ToImGuiColor(bg2_color),
+		primary_color = ToImGuiColor(primary_color),
+		secondary_color = ToImGuiColor(secondary_color),
+		text_color = ToImGuiColor(text_color),
+		automation_recording = ToImGuiColor(automation_recording),
+	}
+end
+
 local function UnsoloAll()
 	reaper.Main_OnCommand(40340, 0)
 end -- Track: Unsolo all tracks
@@ -147,9 +239,63 @@ end
 
 ---------------------------------------------------------------------------
 local function loop()
+	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 2)
+	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 8)
+
+	ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, Theme_colors.bg_color)
+	ImGui.PushStyleColor(ctx, ImGui.Col_TitleBg, Theme_colors.bg_color)
+	ImGui.PushStyleColor(ctx, ImGui.Col_TitleBgActive, Theme_colors.bg2_color)
+	ImGui.PushStyleColor(ctx, ImGui.Col_Tab, SetAlpha(Theme_colors.bg2_color, 0.45))
+	ImGui.PushStyleColor(ctx, ImGui.Col_TabHovered, SetAlpha(Lighten(Theme_colors.bg2_color, 0.15), 0.8))
+	ImGui.PushStyleColor(ctx, ImGui.Col_TabSelected, Theme_colors.bg2_color)
+	ImGui.PushStyleColor(ctx, ImGui.Col_TabSelectedOverline, Theme_colors.primary_color)
+	ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmed, SetAlpha(Darken(Theme_colors.bg2_color, 0.2), 0.98))
+	ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelected, SetAlpha(Theme_colors.bg2_color, 0.3))
+	ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelectedOverline, SetAlpha(Theme_colors.primary_color, 0))
+	ImGui.PushStyleColor(ctx, ImGui.Col_DockingPreview, SetAlpha(Theme_colors.primary_color, 0.7))
+	ImGui.PushStyleColor(ctx, ImGui.Col_DockingEmptyBg, Theme_colors.bg2_color)
+
 	local window_flags = ImGui.WindowFlags_NoCollapse
 	local visible, open = ImGui.Begin(ctx, "Track Compass", true, window_flags)
+
+	ImGui.PopStyleVar(ctx, 2)
+	ImGui.PopStyleColor(ctx, 12)
+
 	if visible then
+		-- STYLE
+		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, 2)
+		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 4, 2)
+		ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarRounding, 1)
+		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize, 1)
+		-- local font = ImGui.CreateFont('font name', 14) --* get from theme
+		-- ImGui.Attach(ctx, font)
+		-- ImGui.PushFont(ctx, font)
+		-- ImGui.PopFont(ctx)
+
+		local mode_color = focus_view and Lighten(Theme_colors.primary_color, 0.1) or Theme_colors.primary_color
+
+		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Darken(mode_color, 0.2), 0.6))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Darken(mode_color, 0.1))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Darken(mode_color, 0.1), 0.67))
+		ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(mode_color, 0.25)) -- list item
+		ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(mode_color, 0.45))
+		ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(mode_color, 0.35))
+		ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg, SetAlpha(Theme_colors.bg2_color, 0.4)) -- list box, checkbox bg
+		ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgActive, SetAlpha(Theme_colors.bg2_color, 0.4))
+		ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgHovered, SetAlpha(Theme_colors.bg2_color, 0.6))
+		ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, mode_color)
+		ImGui.PushStyleColor(ctx, ImGui.Col_Text, Theme_colors.text_color)
+		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGrip, SetAlpha(Theme_colors.primary_color, 0.2))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGripActive, SetAlpha(Theme_colors.primary_color, 0.67))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGripHovered, SetAlpha(Theme_colors.primary_color, 0.95))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarBg, SetAlpha(Darken(Theme_colors.bg2_color, 0.15), 0.5))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrab, SetAlpha(Theme_colors.primary_color, 1))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabActive, SetAlpha(Theme_colors.primary_color, 1))
+		ImGui.PushStyleColor(
+			ctx,
+			ImGui.Col_ScrollbarGrabHovered,
+			SetAlpha(Lighten(Theme_colors.primary_color, 0.15), 1)
+		)
 		local track_count = reaper.CountTracks(0)
 
 		-- WINDOW SIZING
@@ -157,10 +303,13 @@ local function loop()
 		local footer_height = ImGui.GetFrameHeightWithSpacing(ctx) * NUM_CHECKBOXES
 		local list_height = -footer_height
 
+		ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
 		-- ALL button + capture button. ALL should take up most of the space. both take up full width
 		local available_width = ImGui.GetContentRegionAvail(ctx)
+
 		local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
-		local capture_button_width = 30
+
+		local capture_button_width = 20
 		if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
 			RestoreAllState()
 		end
@@ -171,6 +320,10 @@ local function loop()
 
 		ImGui.SameLine(ctx)
 
+		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.automation_recording, 0.5))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Theme_colors.automation_recording)
+		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.automation_recording, 0.67))
+
 		if ImGui.Button(ctx, "*", capture_button_width, 0) then
 			CaptureAllState()
 		end
@@ -179,6 +332,10 @@ local function loop()
 			"Capture default project state showing all desired tracks.\nIf you have tracks that are shown in the TCP but not MCP (eg. MIDI only tracks), this will keep that intact."
 		)
 
+		ImGui.PopStyleColor(ctx, 3)
+		ImGui.PopStyleVar(ctx, 1)
+
+		ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg, SetAlpha(Theme_colors.bg2_color, 1)) -- list box, checkbox bg
 		-- -FLT_MIN = right align
 		if ImGui.BeginListBox(ctx, "##tracks", -FLT_MIN, list_height) then
 			local depth = 0
@@ -195,10 +352,7 @@ local function loop()
 				if skip_below_depth == nil then
 					-- render track normally
 					local name = GetTrackName(track)
-					local indent_px = depth * ImGui.StyleVar_IndentSpacing
-					if indent_px > 0 then
-						ImGui.Indent(ctx, indent_px)
-					end
+					local indent_str = string.rep("    ", depth)
 
 					local is_folder_parent = (folder_depth == 1)
 					local folder_compact = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERCOMPACT")
@@ -216,16 +370,9 @@ local function loop()
 						is_selected = reaper.IsTrackSelected(track)
 					end
 
-					-- ? only bother showing TCP tracks? MCP-only tracks are probably sends, so don't touch them?
+					-- ImGui.PushStyleVar(ctx, ImGui.StyleVar_SelectableTextAlign, 0.04, 0.5)
 					-------------- ON-CLICK ACTION --------------
-					if
-						ImGui.Selectable(
-							ctx,
-							prefix .. name .. "##" .. i,
-							is_selected,
-							ImGui.SelectableFlags_SpanAllColumns
-						)
-					then
+					if ImGui.Selectable(ctx, " " .. indent_str .. prefix .. name .. "##" .. i, is_selected) then
 						local mods = ImGui.GetKeyMods(ctx)
 
 						local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
@@ -274,11 +421,8 @@ local function loop()
 						end
 						reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 					end
+					-- ImGui.PopStyleVar(ctx, 1) -- selectable text align
 					---------------------------------------------
-
-					if indent_px > 0 then
-						ImGui.Unindent(ctx, indent_px)
-					end
 
 					-- start skipping children if this folder is collapsed
 					if is_collapsed then
@@ -309,8 +453,11 @@ local function loop()
 				UnsoloAll()
 			end
 		end
+		ImGui.PopStyleVar(ctx, 1) -- frame border
 		---------------------
 
+		ImGui.PopStyleVar(ctx, 3)
+		ImGui.PopStyleColor(ctx, 19)
 		ImGui.End(ctx)
 	end
 
@@ -319,4 +466,7 @@ local function loop()
 	end
 end
 
+CaptureAllState()
+CaptureCurrentTheme()
+-- reaper.ShowConsoleMsg("\nWindow DPI scale: " .. ImGui.GetWindowDpiScale(ctx))
 reaper.defer(loop)
