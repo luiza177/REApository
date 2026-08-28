@@ -1,3 +1,43 @@
+-- @description A fast and efficient way to navigate and focus in large projects.
+-- @author Luiza177
+-- @version 0.0.1
+-- @about
+-- # Track Compass
+-- Inspired by LKC Tools Project Navigator, Track Compass allows you to focus on only the tracks you're working on without extra clutter.
+-- With Focus View on, only selected tracks get shown. With it off, you get a representation of your tracks, use it to select and navigate around.
+-- Regardless of what you do, Track Compass remembers the way you like your project set up.
+-- On startup, it takes as snapshot of your project, this means:
+-- - Archived or hidden tracks stay hidden
+-- - MIDI only tracks (with hidden MCPs) only get their TCP recalled
+-- - FX return tracks (hidden in the arrange view) only get their MCP recalled
+-- If you add tracks later, press the * button (beside the ALL button), and a new snapshot is taken.
+-- ## Other features:
+-- - Ctrl/Cmd click for multi-select
+-- - Alt/Opt click or turn on Solo mode for soloing
+-- - Adapts to your theme
+-- It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim.
+-- And, of course, add some bells and whistles.
+-- ## (Current?) Limitations:
+-- - Won't keep pinned tracks when focusing
+-- - No click-and-drag to select
+-- - No toggling folder states
+-- - Requires taking another snapshot when new tracks are created
+-- ## Roadmap:
+-- - Remember state when quit
+-- - Option to keep pinned tracks when focusing
+-- - Option to not show hidden or MCP-only tracks in list
+-- - Save snapshot with project
+-- - keyboard navigation
+-- - allow drag-select
+-- - represent solo state in list
+-- - search + shortcuts
+-- - expand/collapse folders
+-- - represent track color in list
+-- @changelog
+--   - init
+-- @provides
+-- [main] .
+
 if not reaper.ImGui_GetBuiltinPath then
 	return reaper.MB("ReaImGui is not installed or too old.", "Track Compass", 0)
 end
@@ -7,39 +47,6 @@ local ImGui = require("imgui")("0.10")
 
 local ctx = ImGui.CreateContext("Track Compass")
 local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
-
--- GENERAL
--- TODO: tooltip delay longer and stationary
--- clean up colors
--- refactor
--- optimize
-
--- FUNCTIONALITY
--- TODO: option to leave PINNED tracks alone
--- TODO: option to hide tracks with hidden TCP
--- TODO: remember state when quit
--- later
--- TODO: Auto monitoring of new tracks
-
--- WORKFLOW
--- TODO: ignore non-shortcut key commands
--- TODO: allow drag select
--- TODO: allow toggling folder state -- needs changing from Listbox to (selectable) Tree
--- TODO: keyboard workflow
--- -- arrow or vim navigation
--- -- shortcuts to focus main reaper window and ImGui window / back and forth
--- later
--- TODO: search + shortcuts
--- ? scroll to content?
--- TODO: represent solo state in list
--- ? display track number?
-
--- STYLE
--- TODO: call attention to solo mode
--- later
--- TODO: represent pinned track
--- TODO: track color in selectable
--- TODO: ensure readable text
 
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
@@ -86,26 +93,6 @@ local function Lighten(color, amount)
 	return (r << 24) | (g << 16) | (b << 8) | a
 end
 
--- local function GetReadableTextColor(bg_color, light_color, dark_color)
---     -- bg_color: 0xRRGGBBAA background color to check against
---     -- light_color/dark_color: optional overrides (default white/black), same 0xRRGGBBAA format
---     light_color = light_color or 0xFFFFFFFF
---     dark_color = dark_color or 0x000000FF
-
---     local r = (bg_color >> 24) & 0xFF
---     local g = (bg_color >> 16) & 0xFF
---     local b = (bg_color >> 8) & 0xFF
-
---     -- perceived brightness (weighted for human eye sensitivity: green reads brightest, blue darkest)
---     local brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-
---     if brightness > 0.5 then
---         return dark_color -- light background -> dark text
---     else
---         return light_color -- dark background -> light text
---     end
--- end
-
 local function ToImGuiColor(color)
 	local converted = ImGui.ColorConvertNative(color)
 	return (converted << 8 | 0xFF)
@@ -117,7 +104,7 @@ local function CaptureCurrentTheme()
 	local bg2_color = reaper.GetThemeColor("col_tracklistbg", 0) -- or genlist_bg, col_tracklistbg
 	local primary_color = reaper.GetThemeColor("genlist_selbg", 0) -- or col_toolbar_text_on, genlist_selbg, col_cursor
 	local secondary_color = reaper.GetThemeColor("playcursor_color", 0)
-	local text_color = reaper.GetThemeColor("col_tcp_text", 0)
+	-- local text_color = reaper.GetThemeColor("col_tcp_text", 0)
 	local automation_recording = reaper.GetThemeColor("col_fadearm", 0)
 
 	Theme_colors = {
@@ -125,7 +112,7 @@ local function CaptureCurrentTheme()
 		bg2_color = ToImGuiColor(bg2_color),
 		primary_color = ToImGuiColor(primary_color),
 		secondary_color = ToImGuiColor(secondary_color),
-		text_color = ToImGuiColor(text_color),
+		-- text_color = ToImGuiColor(text_color),
 		automation_recording = ToImGuiColor(automation_recording),
 	}
 end
@@ -174,31 +161,21 @@ local function GetAllTracksToFocus()
 	local depth = 0
 	local show_all_depth = nil
 
-	-- reaper.ShowConsoleMsg("\nSTART\n")
-
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track = reaper.GetTrack(0, i)
-		-- reaper.ShowConsoleMsg("\n" .. i .. " " .. GetTrackName(track))
 		local folder_state = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH")
-		-- reaper.ShowConsoleMsg("\n current depth: " .. depth )
-		-- reaper.ShowConsoleMsg("\n folder_state: " .. folder_state )
-		-- reaper.ShowConsoleMsg("\n show_all_depth: " .. tostring(show_all_depth))
 
 		if show_all_depth ~= nil and depth >= show_all_depth then
-			-- reaper.ShowConsoleMsg("\n   adding track and continuing")
 			all_focused_tracks[track] = true
 			goto continue
 		elseif show_all_depth ~= nil and depth < show_all_depth then
-			-- reaper.ShowConsoleMsg("\n   depth fell below show all, resetting to nil")
 			show_all_depth = nil
 		end
 
 		if clicked_tracks[track] == true then
 			all_focused_tracks[track] = true
-			-- reaper.ShowConsoleMsg("\n   add track")
 			if folder_state == 1 then
 				show_all_depth = depth + folder_state
-				-- reaper.ShowConsoleMsg(" and setting show_all_depth to " .. show_all_depth)
 			end
 		end
 
@@ -267,13 +244,11 @@ local function loop()
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 4, 2)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarRounding, 1)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize, 1)
-		-- local font = ImGui.CreateFont('font name', 14) --* get from theme
-		-- ImGui.Attach(ctx, font)
-		-- ImGui.PushFont(ctx, font)
-		-- ImGui.PopFont(ctx)
 
 		local mode_color = focus_view and Lighten(Theme_colors.primary_color, 0.1) or Theme_colors.primary_color
 
+		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Lighten(Theme_colors.primary_color, 0.2), 0.2))
+		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Darken(Theme_colors.bg2_color, 0.1), 0.1))
 		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Darken(mode_color, 0.2), 0.6))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Darken(mode_color, 0.1))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Darken(mode_color, 0.1), 0.67))
@@ -284,7 +259,7 @@ local function loop()
 		ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgActive, SetAlpha(Theme_colors.bg2_color, 0.4))
 		ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgHovered, SetAlpha(Theme_colors.bg2_color, 0.6))
 		ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, mode_color)
-		ImGui.PushStyleColor(ctx, ImGui.Col_Text, Theme_colors.text_color)
+		ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xFFFFFFFF)
 		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGrip, SetAlpha(Theme_colors.primary_color, 0.2))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGripActive, SetAlpha(Theme_colors.primary_color, 0.67))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGripHovered, SetAlpha(Theme_colors.primary_color, 0.95))
@@ -304,9 +279,8 @@ local function loop()
 		local list_height = -footer_height
 
 		ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
-		-- ALL button + capture button. ALL should take up most of the space. both take up full width
-		local available_width = ImGui.GetContentRegionAvail(ctx)
 
+		local available_width = ImGui.GetContentRegionAvail(ctx)
 		local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
 
 		local capture_button_width = 20
@@ -371,6 +345,7 @@ local function loop()
 					end
 
 					-- ImGui.PushStyleVar(ctx, ImGui.StyleVar_SelectableTextAlign, 0.04, 0.5)
+
 					-------------- ON-CLICK ACTION --------------
 					if ImGui.Selectable(ctx, " " .. indent_str .. prefix .. name .. "##" .. i, is_selected) then
 						local mods = ImGui.GetKeyMods(ctx)
@@ -457,7 +432,7 @@ local function loop()
 		---------------------
 
 		ImGui.PopStyleVar(ctx, 3)
-		ImGui.PopStyleColor(ctx, 19)
+		ImGui.PopStyleColor(ctx, 21)
 		ImGui.End(ctx)
 	end
 
@@ -468,5 +443,4 @@ end
 
 CaptureAllState()
 CaptureCurrentTheme()
--- reaper.ShowConsoleMsg("\nWindow DPI scale: " .. ImGui.GetWindowDpiScale(ctx))
 reaper.defer(loop)
