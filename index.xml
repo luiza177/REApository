@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="db64bef7ab19c854191bc4df691f9ce46c10b89f">
+<index version="1" name="Luiza177's REApository" commit="cc8fc0cb2476283ebb04b544dfcce6d59df1d374">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -88,6 +88,47 @@
         <source>https://github.com/luiza177/REApository/raw/db64bef7ab19c854191bc4df691f9ce46c10b89f/MIDI%20Editor/Custom%20note%20order%20view%20transpose/luiza177_Custom%20note%20order%20view%20transpose.lua</source>
         <source main="midi_editor" file="luiza177_Transpose down to previous note in custom view.lua">https://github.com/luiza177/REApository/raw/db64bef7ab19c854191bc4df691f9ce46c10b89f/MIDI%20Editor/Custom%20note%20order%20view%20transpose/luiza177_Transpose%20down%20to%20previous%20note%20in%20custom%20view.lua</source>
         <source main="midi_editor" file="luiza177_Transpose up to next note in custom view.lua">https://github.com/luiza177/REApository/raw/db64bef7ab19c854191bc4df691f9ce46c10b89f/MIDI%20Editor/Custom%20note%20order%20view%20transpose/luiza177_Transpose%20up%20to%20next%20note%20in%20custom%20view.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="Workflow/Track Compass">
+    <reapack name="luiza177_Track Compass.lua" type="script" desc="A fast and efficient way to navigate and focus in large projects.">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Track Compass\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Inspired by LKC Tools Project Navigator, Track Compass allows you to focus on only the tracks you're working on without extra clutter. With Focus View on, only selected tracks get shown. With it off, you get a representation of your tracks, use it to select and navigate around. Regardless of what you do, Track Compass remembers the way you like your project set up. On startup, it takes as snapshot of your project, this means:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Archived or hidden tracks stay hidden\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab MIDI only tracks (with hidden MCPs) only get their TCP recalled\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab FX return tracks (hidden in the arrange view) only get their MCP recalled If you add tracks later, press the * button (beside the ALL button), and a new snapshot is taken.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Other features:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Ctrl/Cmd click for multi-select\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Alt/Opt click or turn on Solo mode for soloing\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Adapts to your theme It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim. And, of course, add some bells and whistles.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 (Current?) Limitations:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Won't keep pinned tracks when focusing\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No click-and-drag to select\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No toggling folder states\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Requires taking another snapshot when new tracks are created\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Roadmap:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Remember state when quit\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Option to keep pinned tracks when focusing\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Option to not show hidden or MCP-only tracks in list\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Save snapshot with project\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab keyboard navigation\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab allow drag-select\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab represent solo state in list\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab search + shortcuts\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab expand/collapse folders\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab represent track color in list\sa180\par}
+}
+]]></description>
+      </metadata>
+      <version name="0.0.1" author="Luiza177" time="2026-08-28T19:29:20Z">
+        <changelog><![CDATA[initial release]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/cc8fc0cb2476283ebb04b544dfcce6d59df1d374/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
