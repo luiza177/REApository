@@ -2,41 +2,41 @@
 -- @version 0.0.1
 -- @author Luiza177
 -- @about
--- # Track Compass
--- Inspired by LKC Tools Project Navigator, Track Compass allows you to focus on only the tracks you're working on without extra clutter.
--- With Focus View on, only selected tracks get shown. With it off, you get a representation of your tracks, use it to select and navigate around.
--- Regardless of what you do, Track Compass remembers the way you like your project set up.
--- On startup, it takes as snapshot of your project, this means:
--- - Archived or hidden tracks stay hidden
--- - MIDI only tracks (with hidden MCPs) only get their TCP recalled
--- - FX return tracks (hidden in the arrange view) only get their MCP recalled
--- If you add tracks later, press the * button (beside the ALL button), and a new snapshot is taken.
--- ## Other features:
--- - Ctrl/Cmd click for multi-select
--- - Alt/Opt click or turn on Solo mode for soloing
--- - Adapts to your theme
--- It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim.
--- And, of course, add some bells and whistles.
--- ## (Current?) Limitations:
--- - Won't keep pinned tracks when focusing
--- - No click-and-drag to select
--- - No toggling folder states
--- - Requires taking another snapshot when new tracks are created
--- ## Roadmap:
--- - Remember state when quit
--- - Option to keep pinned tracks when focusing
--- - Option to not show hidden or MCP-only tracks in list
--- - Save snapshot with project
--- - keyboard navigation
--- - allow drag-select
--- - represent solo state in list
--- - search + shortcuts
--- - expand/collapse folders
--- - represent track color in list
+--   # Track Compass
+--   Inspired by LKC Tools Project Navigator, Track Compass allows you to focus on only the tracks you're working on without extra clutter.
+--   With Focus View on, only selected tracks get shown. With it off, you get a representation of your tracks, use it to select and navigate around.
+--   Regardless of what you do, Track Compass remembers the way you like your project set up.
+--   On startup, it takes as snapshot of your project, this means:
+--   - Archived or hidden tracks stay hidden
+--   - MIDI only tracks (with hidden MCPs) only get their TCP recalled
+--   - FX return tracks (hidden in the arrange view) only get their MCP recalled
+--   If you add tracks later, press the * button (beside the ALL button), and a new snapshot is taken.
+--   ## Other features:
+--   - Ctrl/Cmd click for multi-select
+--   - Alt/Opt click or turn on Solo mode for soloing
+--   - Adapts to your theme
+--   It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim.
+--   And, of course, add some bells and whistles.
+--   ## (Current?) Limitations:
+--   - Won't keep pinned tracks when focusing
+--   - No click-and-drag to select
+--   - No toggling folder states
+--   - Requires taking another snapshot when new tracks are created
+--   ## Roadmap:
+--   - Remember state when quit
+--   - Option to keep pinned tracks when focusing
+--   - Option to not show hidden or MCP-only tracks in list
+--   - Save snapshot with project
+--   - keyboard navigation
+--   - allow drag-select
+--   - represent solo state in list
+--   - search + shortcuts
+--   - expand/collapse folders
+--   - represent track color in list
 -- @changelog
 --   initial release
 -- @provides
--- [main] .
+--   [main] .
 
 if not reaper.ImGui_GetBuiltinPath then
 	return reaper.MB("ReaImGui is not installed or too old.", "Track Compass", 0)
