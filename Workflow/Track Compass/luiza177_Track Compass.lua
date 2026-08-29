@@ -1,5 +1,5 @@
 -- @description A fast and efficient way to navigate and focus in large projects.
--- @version 0.0.1
+-- @version 0.0.2
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -34,7 +34,7 @@
 --   - expand/collapse folders
 --   - represent track color in list
 -- @changelog
---   initial release
+--   Fixed - Restoreing ALL state does not clear TC selection
 -- @provides
 --   [main] .
 
@@ -153,6 +153,7 @@ local function RestoreAllState()
 		end
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
+	clicked_tracks = {}
 	UnsoloAll()
 end
 
