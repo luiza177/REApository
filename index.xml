@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="cc8fc0cb2476283ebb04b544dfcce6d59df1d374">
+<index version="1" name="Luiza177's REApository" commit="ba5fb1d695ecccdf579d2ee85c5c4513ce1d6e34">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -129,6 +129,10 @@
       <version name="0.0.1" author="Luiza177" time="2026-08-28T19:29:20Z">
         <changelog><![CDATA[initial release]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/cc8fc0cb2476283ebb04b544dfcce6d59df1d374/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.0.2" author="Luiza177" time="2026-08-29T07:34:42Z">
+        <changelog><![CDATA[Fixed - Restoreing ALL state does not clear TC selection]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/ba5fb1d695ecccdf579d2ee85c5c4513ce1d6e34/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
