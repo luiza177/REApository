@@ -1,5 +1,5 @@
--- @description A fast and efficient way to navigate and focus in large projects.
--- @version 0.0.2
+-- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
+-- @version 0.0.3
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -39,7 +39,7 @@
 --   [main] .
 
 if not reaper.ImGui_GetBuiltinPath then
-	return reaper.MB("ReaImGui is not installed or too old.", "Track Compass", 0)
+	return reaper.MB("ReaImGui is not installed or too old.", "Track Compass -- ERROR", 0)
 end
 
 package.path = reaper.ImGui_GetBuiltinPath() .. "/?.lua;" .. package.path
@@ -116,10 +116,10 @@ local function CaptureCurrentTheme()
 		automation_recording = ToImGuiColor(automation_recording),
 	}
 end
-
+---------------------------------------------------------------------------
 local function UnsoloAll()
-	reaper.Main_OnCommand(40340, 0)
-end -- Track: Unsolo all tracks
+	reaper.Main_OnCommand(40340, 0) -- Track: Unsolo all tracks
+end
 local function SoloExclusive()
 	UnsoloAll()
 	reaper.Main_OnCommand(40728, 0) -- Track: Solo tracks
@@ -240,7 +240,6 @@ local function loop()
 	ImGui.PopStyleColor(ctx, 12)
 
 	if visible then
-		-- STYLE
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, 2)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 4, 2)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarRounding, 1)
@@ -274,7 +273,7 @@ local function loop()
 		)
 		local track_count = reaper.CountTracks(0)
 
-		-- WINDOW SIZING
+		--------------------------- WINDOW SIZING
 		local NUM_CHECKBOXES = 2
 		local footer_height = ImGui.GetFrameHeightWithSpacing(ctx) * NUM_CHECKBOXES
 		local list_height = -footer_height
@@ -284,6 +283,7 @@ local function loop()
 		local available_width = ImGui.GetContentRegionAvail(ctx)
 		local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
 
+		--------------------------- TOP BUTTONS
 		local capture_button_width = 20
 		if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
 			RestoreAllState()
@@ -310,6 +310,7 @@ local function loop()
 		ImGui.PopStyleColor(ctx, 3)
 		ImGui.PopStyleVar(ctx, 1)
 
+		----------------------------- LIST BOX
 		ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg, SetAlpha(Theme_colors.bg2_color, 1)) -- list box, checkbox bg
 		-- -FLT_MIN = right align
 		if ImGui.BeginListBox(ctx, "##tracks", -FLT_MIN, list_height) then
@@ -398,15 +399,13 @@ local function loop()
 						reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 					end
 					-- ImGui.PopStyleVar(ctx, 1) -- selectable text align
-					---------------------------------------------
 
-					-- start skipping children if this folder is collapsed
+					---------------------------------------------
 					if is_collapsed then
 						skip_below_depth = depth
 					end
 				end
 
-				-- update depth for the NEXT track based on this track's folder change
 				depth = depth + folder_depth
 				if depth < 0 then
 					depth = 0
@@ -416,7 +415,7 @@ local function loop()
 			ImGui.EndListBox(ctx)
 		end
 
-		------------------ OPTIONS
+		------------------ OPTIONS CHECKBOXES
 		local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
 		if focus_changed then
 			focus_view = focus_new
@@ -442,6 +441,6 @@ local function loop()
 	end
 end
 
-CaptureAllState()
-CaptureCurrentTheme()
+CaptureAllState() -- TODO: on project change?
+CaptureCurrentTheme() -- TODO: on theme change
 reaper.defer(loop)
