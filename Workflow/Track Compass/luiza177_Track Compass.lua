@@ -57,6 +57,11 @@ local last_alt_click = false
 -- CHECKBOX STUFF
 local focus_view = true
 local solo_selected = false
+local keep_pinned = true
+
+---------------------------------------------------------------------------
+-- CONFIG VARS
+ImGui.SetConfigVar(ctx, ImGui.ConfigVar_HoverStationaryDelay, 0.7)
 
 ---------------------------------------------------------------------------
 local function SetAlpha(color, alpha)
@@ -165,6 +170,8 @@ local function GetAllTracksToFocus()
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track = reaper.GetTrack(0, i)
 		local folder_state = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH")
+		local pinned_state = reaper.GetMediaTrackInfo_Value(track, "B_TCPPIN") -- TODO: allow user to unselect some pinned tracks / reflect in clicked tracks
+		-- reaper.ShowConsoleMsg("\n" .. i .. " track: " .. GetTrackName(track) .. ", pinned: " .. tostring(pinned_state))
 
 		if show_all_depth ~= nil and depth >= show_all_depth then
 			all_focused_tracks[track] = true
@@ -173,7 +180,7 @@ local function GetAllTracksToFocus()
 			show_all_depth = nil
 		end
 
-		if clicked_tracks[track] == true then
+		if clicked_tracks[track] == true or keep_pinned and pinned_state == 1 then
 			all_focused_tracks[track] = true
 			if folder_state == 1 then
 				show_all_depth = depth + folder_state
@@ -274,16 +281,16 @@ local function loop()
 		local track_count = reaper.CountTracks(0)
 
 		--------------------------- WINDOW SIZING
-		local NUM_CHECKBOXES = 2
+		local NUM_CHECKBOXES = 3
 		local footer_height = ImGui.GetFrameHeightWithSpacing(ctx) * NUM_CHECKBOXES
 		local list_height = -footer_height
-
-		ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
 
 		local available_width = ImGui.GetContentRegionAvail(ctx)
 		local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
 
 		--------------------------- TOP BUTTONS
+		ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
+
 		local capture_button_width = 20
 		if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
 			RestoreAllState()
@@ -428,6 +435,13 @@ local function loop()
 				UnsoloAll()
 			end
 		end
+
+		local keep_pinned_change, keep_pinned_new = ImGui.Checkbox(ctx, "Keep pinned tracks", keep_pinned)
+		if keep_pinned_change then
+			keep_pinned = keep_pinned_new
+		end
+		ImGui.SetItemTooltip(ctx, "Keep pinned tracks while focusing")
+
 		ImGui.PopStyleVar(ctx, 1) -- frame border
 		---------------------
 
