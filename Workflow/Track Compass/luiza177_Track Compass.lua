@@ -34,7 +34,7 @@
 --   - expand/collapse folders
 --   - represent track color in list
 -- @changelog
---   Fixed - Restoreing ALL state does not clear TC selection
+--   Fixed name and clean up
 -- @provides
 --   [main] .
 
