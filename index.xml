@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="ba5fb1d695ecccdf579d2ee85c5c4513ce1d6e34">
+<index version="1" name="Luiza177's REApository" commit="b69470bc909ecc2b956eabd0e61d6ab2e33513a7">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -92,7 +92,7 @@
     </reapack>
   </category>
   <category name="Workflow/Track Compass">
-    <reapack name="luiza177_Track Compass.lua" type="script" desc="A fast and efficient way to navigate and focus in large projects.">
+    <reapack name="luiza177_Track Compass.lua" type="script" desc="Track Compass - A fast and efficient way to navigate and focus in large projects.">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
@@ -133,6 +133,10 @@
       <version name="0.0.2" author="Luiza177" time="2026-08-29T07:34:42Z">
         <changelog><![CDATA[Fixed - Restoreing ALL state does not clear TC selection]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/ba5fb1d695ecccdf579d2ee85c5c4513ce1d6e34/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.0.3" author="Luiza177" time="2026-08-31T09:01:54Z">
+        <changelog><![CDATA[Fixed - Restoreing ALL state does not clear TC selection]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/4a12a15b716c559658305c9d5bcf9a525e77d250/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
