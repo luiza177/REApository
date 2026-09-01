@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="b69470bc909ecc2b956eabd0e61d6ab2e33513a7">
+<index version="1" name="Luiza177's REApository" commit="4cfd95b66db313fe8734dd182888533ee94f0b84">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -108,13 +108,12 @@
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Alt/Opt click or turn on Solo mode for soloing\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Adapts to your theme It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim. And, of course, add some bells and whistles.\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 (Current?) Limitations:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Won't keep pinned tracks when focusing\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No click-and-drag to select\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No toggling folder states\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Requires taking another snapshot when new tracks are created\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Requires taking another snapshot when new tracks are created\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Does not represent folder collapsed state\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Roadmap:\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Remember state when quit\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Option to keep pinned tracks when focusing\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Option to not show hidden or MCP-only tracks in list\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Save snapshot with project\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab keyboard navigation\par}
@@ -137,6 +136,11 @@
       <version name="0.0.3" author="Luiza177" time="2026-08-31T09:01:54Z">
         <changelog><![CDATA[Fixed - Restoreing ALL state does not clear TC selection]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/4a12a15b716c559658305c9d5bcf9a525e77d250/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.1.0" author="Luiza177" time="2026-09-01T18:54:56Z">
+        <changelog><![CDATA[- Pinned tracks are represented at the top of the list
+- Ability to select which pinned tracks to focus]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/4cfd95b66db313fe8734dd182888533ee94f0b84/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
