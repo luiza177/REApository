@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.0.3
+-- @version 0.1.0
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -18,13 +18,12 @@
 --   It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim.
 --   And, of course, add some bells and whistles.
 --   ## (Current?) Limitations:
---   - Won't keep pinned tracks when focusing
 --   - No click-and-drag to select
 --   - No toggling folder states
 --   - Requires taking another snapshot when new tracks are created
+--   - Does not represent folder collapsed state
 --   ## Roadmap:
 --   - Remember state when quit
---   - Option to keep pinned tracks when focusing
 --   - Option to not show hidden or MCP-only tracks in list
 --   - Save snapshot with project
 --   - keyboard navigation
@@ -34,7 +33,8 @@
 --   - expand/collapse folders
 --   - represent track color in list
 -- @changelog
---   Fixed name and clean up
+--   - Pinned tracks are represented at the top of the list
+--   - Ability to select which pinned tracks to focus
 -- @provides
 --   [main] .
 
@@ -50,9 +50,12 @@ local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
+local main_tracks = {}
+local pinned_tracks = {}
 local clicked_tracks = {}
 local last_alt_click = false
 
+-- TODO: represent folder collapsed state
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
 local focus_view = true
@@ -130,15 +133,6 @@ local function SoloExclusive()
 	reaper.Main_OnCommand(40728, 0) -- Track: Solo tracks
 end
 
-local function GetTrackName(track)
-	local _, name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
-	if name == "" then
-		local track_num = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
-		name = "Track " .. tostring(math.floor(track_num))
-	end
-	return name
-end
-
 local function CaptureAllState()
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track = reaper.GetTrack(0, i)
@@ -162,64 +156,230 @@ local function RestoreAllState()
 	UnsoloAll()
 end
 
-local function GetAllTracksToFocus()
-	local all_focused_tracks = {}
+local function GetTrackName(track, i)
+	local i = i or nil
+	local _, name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
+	if name == "" then
+		name = "Track " .. i + 1
+	end
+	return name
+end
+
+local function TrackPrefix(track)
+	local indent_str = string.rep("    ", track.depth)
+	local folder_str = ""
+	if track.is_folder then
+		folder_str = track.is_collapsed and "▸ " or "▾ "
+	end
+	return indent_str .. folder_str
+end
+
+local function GatherAllTrackInfo()
 	local depth = 0
-	local show_all_depth = nil
+	pinned_tracks = {}
+	main_tracks = {}
 
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track = reaper.GetTrack(0, i)
-		local folder_state = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH")
-		local pinned_state = reaper.GetMediaTrackInfo_Value(track, "B_TCPPIN") -- TODO: allow user to unselect some pinned tracks / reflect in clicked tracks
-		-- reaper.ShowConsoleMsg("\n" .. i .. " track: " .. GetTrackName(track) .. ", pinned: " .. tostring(pinned_state))
+		local depth_change = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH")
 
-		if show_all_depth ~= nil and depth >= show_all_depth then
-			all_focused_tracks[track] = true
-			goto continue
-		elseif show_all_depth ~= nil and depth < show_all_depth then
-			show_all_depth = nil
+		local name = GetTrackName(track, i)
+		local number = i + 1 --? or 0 based?
+		local is_folder = depth_change == 1
+		local color = reaper.GetMediaTrackInfo_Value(track, "I_CUSTOMCOLOR") -- OS dependent color|0x1000000 (i.e. ColorToNative(r,g,b)|0x1000000). If you do not |0x1000000, then it will not be used, but will store the color
+		local is_collapsed = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERCOMPACT") == 2
+
+		local track_info = {
+			track_ref = track,
+			name = name,
+			number = number,
+			depth = depth,
+			is_folder = is_folder,
+			is_collapsed = is_collapsed,
+			color = color,
+		}
+
+		-- reaper.ShowConsoleMsg("\n" .. number .. " " .. name .. ":")
+		-- reaper.ShowConsoleMsg("\n" .. "    depth:" .. depth)
+		-- reaper.ShowConsoleMsg("\n" .. "    is_folder:" .. tostring(is_folder))
+		-- reaper.ShowConsoleMsg("\n" .. "    is_collapsed:" .. tostring(is_collapsed))
+
+		local is_pinned = reaper.GetMediaTrackInfo_Value(track, "B_TCPPIN") == 1
+		if is_pinned then
+			pinned_tracks[#pinned_tracks + 1] = track_info
+		else
+			main_tracks[#main_tracks + 1] = track_info
 		end
 
-		if clicked_tracks[track] == true or keep_pinned and pinned_state == 1 then
-			all_focused_tracks[track] = true
-			if folder_state == 1 then
-				show_all_depth = depth + folder_state
-			end
-		end
-
-		::continue::
-
-		depth = depth + folder_state
+		depth = depth + depth_change
 	end
+end
 
-	return all_focused_tracks
+local function IsEntrySelected(track)
+	if focus_view then
+		return clicked_tracks[track.track_ref] == true
+	else
+		return reaper.IsTrackSelected(track.track_ref)
+	end
 end
 
 local function FocusSelected(should_solo)
-	local focused_tracks_and_children = GetAllTracksToFocus()
 	for i = 0, reaper.CountTracks(0) - 1 do
-		local track = reaper.GetTrack(0, i)
-		if focused_tracks_and_children[track] == true then
-			local saved_track_state = all_snapshot[track]
+		local track_ref = reaper.GetTrack(0, i)
+		if clicked_tracks[track_ref] == true then
+			local saved_track_state = all_snapshot[track_ref]
 			if saved_track_state then
-				reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", all_snapshot[track].show_tcp)
-				reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", all_snapshot[track].show_mcp)
+				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", all_snapshot[track_ref].show_tcp)
+				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", all_snapshot[track_ref].show_mcp)
 			else
-				reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
-				reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 1)
+				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", 1)
+				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", 1)
 			end
 			if should_solo then
-				reaper.SetMediaTrackInfo_Value(track, "I_SOLO", 1)
+				reaper.SetMediaTrackInfo_Value(track_ref, "I_SOLO", 1)
 			end
 		else
-			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 0)
-			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 0)
+			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", 0)
+			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", 0)
 			if should_solo then
-				reaper.SetMediaTrackInfo_Value(track, "I_SOLO", 0)
+				reaper.SetMediaTrackInfo_Value(track_ref, "I_SOLO", 0)
 			end
 		end
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
+end
+
+local function GetFolderChildren(track)
+	local depth_to_select = track.depth + 1
+	local current_depth = depth_to_select
+	for i = track.number, reaper.CountTracks(0) - 1 do
+		local other_track = reaper.GetTrack(0, i)
+		local folder_depth_state = reaper.GetMediaTrackInfo_Value(other_track, "I_FOLDERDEPTH")
+
+		clicked_tracks[other_track] = true
+
+		current_depth = current_depth + folder_depth_state
+		if current_depth < depth_to_select then
+			goto continue
+		end
+	end
+	::continue::
+end
+
+local function GetNumFocusedPinnedTracks()
+	local num_selected_pinned_tracks = 0
+	for _, pinned_track in ipairs(pinned_tracks) do
+		if clicked_tracks[pinned_track.track_ref] then
+			num_selected_pinned_tracks = num_selected_pinned_tracks + 1
+		end
+	end
+
+	return num_selected_pinned_tracks
+end
+
+local function GetNumFocusedMainTracks()
+	local num_selected_main_tracks = 0
+	for _, main_track in ipairs(main_tracks) do
+		if clicked_tracks[main_track.track_ref] then
+			num_selected_main_tracks = num_selected_main_tracks + 1
+		end
+	end
+
+	-- reaper.ShowConsoleMsg("\n number of selected main tracks: " .. num_selected_main_tracks)
+	return num_selected_main_tracks
+end
+
+local function GetNumFocusedTracks()
+	local num_selected_tracks = 0
+	for _, _ in ipairs(clicked_tracks) do
+		num_selected_tracks = num_selected_tracks + 1
+		-- reaper.ShowConsoleMsg("\niterating in clicked tracks: " .. num_selected_tracks)
+	end
+
+	-- reaper.ShowConsoleMsg("\n number of selected tracks: " .. num_selected_tracks)
+	return num_selected_tracks
+end
+
+local function AddPinnedTracks()
+	for _, pinned_track in ipairs(pinned_tracks) do
+		clicked_tracks[pinned_track.track_ref] = true
+	end
+end
+
+local function HandleClickTrack(track, to_select, is_pinned)
+	-- reaper.ShowConsoleMsg("\ntrack: " .. track.name)
+	-- reaper.ShowConsoleMsg("\n  selecting: " .. tostring(to_select))
+	local mods = ImGui.GetKeyMods(ctx)
+	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
+	local shift_held = (mods & ImGui.Mod_Shift) ~= 0
+	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
+	local should_solo = alt_held or solo_selected
+
+	if focus_view then
+		if focus_view and keep_pinned and next(clicked_tracks) == nil then
+			AddPinnedTracks()
+		end
+
+		if last_alt_click and not alt_held then
+			UnsoloAll()
+		end
+
+		if not ctrl_held then
+			if keep_pinned then
+				local num_focused_main_tracks = GetNumFocusedMainTracks()
+				if num_focused_main_tracks > 0 and not is_pinned then
+					for _, main_track in ipairs(main_tracks) do
+						clicked_tracks[main_track.track_ref] = nil
+					end
+					if not to_select and num_focused_main_tracks > 1 then
+						to_select = true
+					end
+				end
+			else
+				clicked_tracks = {}
+			end
+		else
+			-- reaper.ShowConsoleMsg("\ncontrol clicked")
+			if is_pinned and GetNumFocusedPinnedTracks() == 0 then
+				keep_pinned = true
+				-- reaper.ShowConsoleMsg("\nenable keep pinned")
+			end
+		end
+
+		if to_select then
+			clicked_tracks[track.track_ref] = true
+			if track.is_folder then
+				GetFolderChildren(track)
+			end
+		else
+			clicked_tracks[track.track_ref] = nil
+		end
+
+		if GetNumFocusedPinnedTracks() == 0 then
+			keep_pinned = false
+		end
+
+		if next(clicked_tracks) == nil or keep_pinned and GetNumFocusedMainTracks() < 1 then
+			RestoreAllState()
+		else
+			FocusSelected(should_solo)
+		end
+		last_alt_click = alt_held
+	else
+		if ctrl_held then
+			if reaper.IsTrackSelected(track.track_ref) then
+				reaper.SetTrackSelected(track.track_ref, false)
+			else
+				reaper.SetTrackSelected(track.track_ref, true)
+			end
+		else
+			reaper.SetOnlyTrackSelected(track.track_ref)
+		end
+		if should_solo then
+			SoloExclusive()
+		end
+	end
+	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 end
 
 ---------------------------------------------------------------------------
@@ -278,7 +438,6 @@ local function loop()
 			ImGui.Col_ScrollbarGrabHovered,
 			SetAlpha(Lighten(Theme_colors.primary_color, 0.15), 1)
 		)
-		local track_count = reaper.CountTracks(0)
 
 		--------------------------- WINDOW SIZING
 		local NUM_CHECKBOXES = 3
@@ -321,101 +480,26 @@ local function loop()
 		ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg, SetAlpha(Theme_colors.bg2_color, 1)) -- list box, checkbox bg
 		-- -FLT_MIN = right align
 		if ImGui.BeginListBox(ctx, "##tracks", -FLT_MIN, list_height) then
-			local depth = 0
-			local skip_below_depth = nil -- if set, hide tracks deeper than this
-
-			for i = 0, track_count - 1 do
-				local track = reaper.GetTrack(0, i)
-				local folder_depth = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH")
-
-				if skip_below_depth ~= nil and depth <= skip_below_depth then
-					skip_below_depth = nil
+			GatherAllTrackInfo()
+			for _, entry in ipairs(pinned_tracks) do
+				local retval, p_selected = ImGui.Selectable(
+					ctx,
+					entry.number .. " " .. TrackPrefix(entry) .. entry.name,
+					IsEntrySelected(entry)
+				)
+				if retval then
+					HandleClickTrack(entry, p_selected, true)
 				end
-
-				if skip_below_depth == nil then
-					-- render track normally
-					local name = GetTrackName(track)
-					local indent_str = string.rep("    ", depth)
-
-					local is_folder_parent = (folder_depth == 1)
-					local folder_compact = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERCOMPACT")
-					local is_collapsed = is_folder_parent and folder_compact == 2
-
-					local prefix = ""
-					if is_folder_parent then
-						prefix = is_collapsed and "▸ " or "▾ "
-					end
-
-					local is_selected
-					if focus_view then
-						is_selected = clicked_tracks[track] == true
-					else
-						is_selected = reaper.IsTrackSelected(track)
-					end
-
-					-- ImGui.PushStyleVar(ctx, ImGui.StyleVar_SelectableTextAlign, 0.04, 0.5)
-
-					-------------- ON-CLICK ACTION --------------
-					if ImGui.Selectable(ctx, " " .. indent_str .. prefix .. name .. "##" .. i, is_selected) then
-						local mods = ImGui.GetKeyMods(ctx)
-
-						local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
-						-- local shift_held = (mods & ImGui.Mod_Shift) ~= 0
-						local alt_held = (mods & ImGui.Mod_Alt) ~= 0
-						local should_solo = alt_held or solo_selected
-
-						if focus_view then
-							local unselect = false
-							if last_alt_click and not alt_held then
-								UnsoloAll()
-							end
-							if not ctrl_held then
-								if clicked_tracks[track] then
-									unselect = true
-								end
-								clicked_tracks = {}
-							end
-							reaper.SetOnlyTrackSelected(track)
-
-							if clicked_tracks[track] == true or unselect then
-								clicked_tracks[track] = nil
-							else
-								clicked_tracks[track] = true
-							end
-
-							if next(clicked_tracks) == nil then
-								RestoreAllState()
-							else
-								FocusSelected(should_solo)
-							end
-							last_alt_click = alt_held
-						else
-							if ctrl_held then
-								if reaper.IsTrackSelected(track) then
-									reaper.SetTrackSelected(track, false)
-								else
-									reaper.SetTrackSelected(track, true)
-								end
-							else
-								reaper.SetOnlyTrackSelected(track)
-							end
-							if should_solo then
-								SoloExclusive()
-							end
-						end
-						reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
-					end
-					-- ImGui.PopStyleVar(ctx, 1) -- selectable text align
-
-					---------------------------------------------
-					if is_collapsed then
-						skip_below_depth = depth
-					end
-				end
-
-				depth = depth + folder_depth
-				if depth < 0 then
-					depth = 0
+			end
+			ImGui.Separator(ctx)
+			for _, entry in ipairs(main_tracks) do
+				local retval, p_selected = ImGui.Selectable(
+					ctx,
+					entry.number .. " " .. TrackPrefix(entry) .. entry.name,
+					IsEntrySelected(entry)
+				)
+				if retval then
+					HandleClickTrack(entry, p_selected, false)
 				end
 			end
 
@@ -439,6 +523,10 @@ local function loop()
 		local keep_pinned_change, keep_pinned_new = ImGui.Checkbox(ctx, "Keep pinned tracks", keep_pinned)
 		if keep_pinned_change then
 			keep_pinned = keep_pinned_new
+			if keep_pinned and GetNumFocusedPinnedTracks() == 0 then
+				AddPinnedTracks()
+				FocusSelected(solo_selected)
+			end
 		end
 		ImGui.SetItemTooltip(ctx, "Keep pinned tracks while focusing")
 
@@ -457,4 +545,5 @@ end
 
 CaptureAllState() -- TODO: on project change?
 CaptureCurrentTheme() -- TODO: on theme change
+
 reaper.defer(loop)
