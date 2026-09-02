@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.1.2
+-- @version 0.1.3
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -21,20 +21,19 @@
 --   - No click-and-drag to select
 --   - No toggling folder states
 --   - Requires taking another snapshot when new tracks are created
---   - Does not represent folder collapsed state
 --   ## Roadmap:
---   - Remember state when quit
+--   - Auto add newly created tracks
 --   - Option to not show hidden or MCP-only tracks in list
+--   - Remember state when quit
+--   - expand/collapse folders
 --   - Save snapshot with project
 --   - keyboard navigation
 --   - allow drag-select
 --   - represent solo state in list
 --   - search + shortcuts
---   - expand/collapse folders
 --   - represent track color in list
 -- @changelog
---   - Fixed bug unintentionally adding focused pinned tracks with Keep Pinned checkbox
---   - Refined Keep Pinned track adding/removing logic
+--   - Represents folder collapsed state
 -- @provides
 --   [main] .
 
@@ -57,7 +56,6 @@ local focused_main_tracks = {}
 local last_alt_click = false
 local last_main_click_ref = nil
 
--- TODO: represent folder collapsed state
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
 local focus_view = true
@@ -153,6 +151,11 @@ local function RestoreAllState()
 		if saved_track_state then
 			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", all_snapshot[track].show_tcp)
 			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", all_snapshot[track].show_mcp)
+			-- else
+			--     -- FIXME: show and add to all_snapshot? integer?
+			--     reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
+			--     reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 1)
+			--     all_snapshot[track] = { show_tcp = 1, show_mcp = 1 }
 		end
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
@@ -240,6 +243,8 @@ local function FocusSelected(should_solo)
 			else
 				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", 1)
 				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", 1)
+				-- all_snapshot[track] = { show_tcp = 1, show_mcp = 1 }
+				-- FIXME: show and add to all_snapshot
 			end
 			if should_solo then
 				reaper.SetMediaTrackInfo_Value(track_ref, "I_SOLO", 1)
@@ -277,14 +282,6 @@ local function AddPinnedTracks()
 	end
 end
 
-local function IsSoleSelected(set, key)
-	if not set[key] then
-		return false
-	end
-	local first_key = next(set)
-	return first_key == key and next(set, first_key) == nil
-end
-
 local function HandleClickTrack(track, is_pinned)
 	local mods = ImGui.GetKeyMods(ctx)
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
@@ -315,6 +312,7 @@ local function HandleClickTrack(track, is_pinned)
 
 	-- SELECTION BEHAVIOR / what to select
 	if is_pinned then -- if a PINNED track was clicked, always multi-select
+		-- FIXME: when in ALL state, pinned tracks cannot be focused
 		if focused_pinned_tracks[track.track_ref] then -- and is already selected then
 			focused_pinned_tracks[track.track_ref] = nil -- unselect it
 		else
@@ -357,7 +355,7 @@ local function HandleClickTrack(track, is_pinned)
 	end
 
 	-- WHAT TO DO ABOUT IT
-	if next(focused_main_tracks) == nil then
+	if next(focused_main_tracks) == nil then -- FIXME: and not keep_pinned???
 		RestoreAllState()
 	else
 		FocusSelected(should_solo)
@@ -365,15 +363,23 @@ local function HandleClickTrack(track, is_pinned)
 	last_alt_click = alt_held
 end
 
+-- FIXME: EDGE CAGE when folder parent is pinned, but children are not (REAPER behavior)
 local function RenderTrackList(set, focused_set, is_pinned)
+	local skip_depth = nil
 	for _, entry in ipairs(set) do
-		local retval = ImGui.Selectable(
-			ctx,
-			entry.number .. " " .. TrackPrefix(entry) .. entry.name,
-			IsEntrySelected(entry, focused_set)
-		)
-		if retval then
-			HandleClickTrack(entry, is_pinned)
+		if is_pinned or not skip_depth or entry.depth < skip_depth then
+			local retval = ImGui.Selectable(
+				ctx,
+				entry.number .. " " .. TrackPrefix(entry) .. entry.name,
+				IsEntrySelected(entry, focused_set)
+			)
+			if retval then
+				HandleClickTrack(entry, is_pinned)
+			end
+			skip_depth = nil
+			if entry.is_folder and entry.is_collapsed then
+				skip_depth = entry.depth + 1
+			end
 		end
 	end
 end
