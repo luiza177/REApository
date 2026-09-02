@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="4cfd95b66db313fe8734dd182888533ee94f0b84">
+<index version="1" name="Luiza177's REApository" commit="66046f886caa92be6b3e50c408a168113bed739c">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -141,6 +141,11 @@
         <changelog><![CDATA[- Pinned tracks are represented at the top of the list
 - Ability to select which pinned tracks to focus]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/4cfd95b66db313fe8734dd182888533ee94f0b84/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.1.1" author="Luiza177" time="2026-09-02T15:16:56Z">
+        <changelog><![CDATA[- Fixed and refactored clicking behavior: pinned tracks are always multi-select
+- Unchecking Focus View now restores ALL state]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/66046f886caa92be6b3e50c408a168113bed739c/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
