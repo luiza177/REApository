@@ -50,8 +50,10 @@ local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
-local main_tracks = {}
 local pinned_tracks = {}
+local focused_pinned_tracks = {}
+local main_tracks = {}
+local focused_main_tracks = {}
 local clicked_tracks = {}
 local last_alt_click = false
 
@@ -154,7 +156,8 @@ local function RestoreAllState()
 		end
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
-	clicked_tracks = {}
+	focused_main_tracks = {}
+	focused_pinned_tracks = {}
 	UnsoloAll()
 end
 
@@ -218,9 +221,9 @@ local function GatherAllTrackInfo()
 	end
 end
 
-local function IsEntrySelected(track)
+local function IsEntrySelected(track, focused_set)
 	if focus_view then
-		return clicked_tracks[track.track_ref] == true
+		return focused_set[track.track_ref] == true
 	else
 		return reaper.IsTrackSelected(track.track_ref)
 	end
@@ -229,7 +232,7 @@ end
 local function FocusSelected(should_solo)
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track_ref = reaper.GetTrack(0, i)
-		if clicked_tracks[track_ref] == true then
+		if focused_pinned_tracks[track_ref] == true or focused_main_tracks[track_ref] == true then
 			local saved_track_state = all_snapshot[track_ref]
 			if saved_track_state then
 				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", all_snapshot[track_ref].show_tcp)
@@ -252,110 +255,44 @@ local function FocusSelected(should_solo)
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
 end
 
-local function GetFolderChildren(track)
+local function GetFolderChildren(track, set)
 	local depth_to_select = track.depth + 1
 	local current_depth = depth_to_select
 	for i = track.number, reaper.CountTracks(0) - 1 do
 		local other_track = reaper.GetTrack(0, i)
 		local folder_depth_state = reaper.GetMediaTrackInfo_Value(other_track, "I_FOLDERDEPTH")
 
-		clicked_tracks[other_track] = true
+		set[other_track] = true
 
 		current_depth = current_depth + folder_depth_state
 		if current_depth < depth_to_select then
-			goto continue
+			return
 		end
 	end
-	::continue::
-end
-
-local function GetNumFocusedPinnedTracks()
-	local num_selected_pinned_tracks = 0
-	for _, pinned_track in ipairs(pinned_tracks) do
-		if clicked_tracks[pinned_track.track_ref] then
-			num_selected_pinned_tracks = num_selected_pinned_tracks + 1
-		end
-	end
-
-	return num_selected_pinned_tracks
-end
-
-local function GetNumFocusedMainTracks()
-	local num_selected_main_tracks = 0
-	for _, main_track in ipairs(main_tracks) do
-		if clicked_tracks[main_track.track_ref] then
-			num_selected_main_tracks = num_selected_main_tracks + 1
-		end
-	end
-
-	-- reaper.ShowConsoleMsg("\n number of selected main tracks: " .. num_selected_main_tracks)
-	return num_selected_main_tracks
 end
 
 local function AddPinnedTracks()
 	for _, pinned_track in ipairs(pinned_tracks) do
-		clicked_tracks[pinned_track.track_ref] = true
+		focused_pinned_tracks[pinned_track.track_ref] = true
 	end
 end
 
-local function HandleClickTrack(track, to_select, is_pinned)
+local function IsSoleSelected(set, key)
+	if not set[key] then
+		return false
+	end
+	local first_key = next(set)
+	return first_key == key and next(set, first_key) == nil
+end
+
+local function HandleClickTrack(track, is_pinned)
 	local mods = ImGui.GetKeyMods(ctx)
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
 	local shift_held = (mods & ImGui.Mod_Shift) ~= 0
 	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
 	local should_solo = alt_held or solo_selected
 
-	if focus_view then
-		-- if keeping pinned tracks and no tracks are currently focused, add pinned tracks
-		if focus_view and keep_pinned and next(clicked_tracks) == nil then
-			AddPinnedTracks()
-		end
-
-		if last_alt_click and not alt_held then
-			UnsoloAll()
-		end -- if focusing away from soloed tracks, unsolo all --! see last_alt_click below
-
-		if not ctrl_held then -- normal click
-			if keep_pinned then -- keeping pinned tracks
-				local num_focused_main_tracks = GetNumFocusedMainTracks() -- main tracks focused at the time of click
-				if num_focused_main_tracks > 0 and not is_pinned then -- one main track already focused, and clicked a main track
-					for _, main_track in ipairs(main_tracks) do -- remove main tracks from focused
-						clicked_tracks[main_track.track_ref] = nil
-					end
-					if not to_select and num_focused_main_tracks > 1 then
-						to_select = true
-					end -- if already selected, more than one main track was already selected/focused. Then exclusively select clicked track --! potential problem: pinned also falls here?
-				end
-			else -- normal click and NOT keeping pinned tracks
-				clicked_tracks = {} -- start fresh
-			end
-		else -- ctrl click = multi-selecting
-			if is_pinned and GetNumFocusedPinnedTracks() == 0 then -- if clicked a pinned track and no pinned tracks are focused
-				keep_pinned = true -- enable keep pinnned
-			end
-		end
-
-		if to_select then -- clicked track was not already selected
-			clicked_tracks[track.track_ref] = true -- then select it
-			if track.is_folder then -- if clicked track is a folder, include its children
-				GetFolderChildren(track)
-			end
-		else -- clicked track was already selected
-			clicked_tracks[track.track_ref] = nil -- then unselect it
-		end
-
-		if GetNumFocusedPinnedTracks() == 0 then -- if no pinned tracks remain focused
-			keep_pinned = false -- turn off keep_pinned
-		end
-
-		-- if no tracks are focused or clicked a pinned track and no main tracks remain focused
-		if next(clicked_tracks) == nil or keep_pinned and GetNumFocusedMainTracks() < 1 then
-			RestoreAllState() -- then restore ALL state
-		else
-			FocusSelected(should_solo) -- or focus
-		end
-		last_alt_click = alt_held -- keep track whether last interaction was a solo action --! should consider whetehr solo_selected was on and is now off?
-	else
+	if not focus_view then
 		if ctrl_held then -- multi-select
 			if reaper.IsTrackSelected(track.track_ref) then
 				reaper.SetTrackSelected(track.track_ref, false)
@@ -368,16 +305,75 @@ local function HandleClickTrack(track, to_select, is_pinned)
 		if should_solo then
 			SoloExclusive()
 		end
+		reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
+		return
 	end
-	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
+
+	if last_alt_click and not alt_held then
+		UnsoloAll()
+	end
+
+	-- SELECTION BEHAVIOR / what to select
+	if is_pinned then -- if a PINNED track was clicked, always multi-select
+		if focused_pinned_tracks[track.track_ref] then -- and is already selected then
+			focused_pinned_tracks[track.track_ref] = nil -- unselect it
+		else
+			focused_pinned_tracks[track.track_ref] = true -- select it
+			if track.is_folder then
+				GetFolderChildren(track, focused_pinned_tracks)
+			end -- and select children, if folder
+		end
+		-- if no pinned tracks remain focused, disable keep_pinned
+		if next(focused_pinned_tracks) == nil then
+			keep_pinned = false
+		end
+		-- keep_pinned = next(focused_pinned_tracks) ~= nil
+	else -- clicked a MAIN track
+		-- add pinned tracks if keep_pinned and no pinned tracks are focused
+		--? move this to outside??
+		if keep_pinned and next(focused_pinned_tracks) == nil then
+			AddPinnedTracks()
+		end
+		if ctrl_held then -- multi-select
+			if focused_main_tracks[track.track_ref] then -- already selected
+				focused_main_tracks[track.track_ref] = nil -- unselect it
+			else
+				focused_main_tracks[track.track_ref] = true -- select it
+				if track.is_folder then
+					GetFolderChildren(track, focused_main_tracks)
+				end -- and select children, if folder
+			end
+		else -- single select
+			if IsSoleSelected(focused_main_tracks, track.track_ref) then -- more than one main track is already selected
+				focused_main_tracks = {} -- or to restore ALL state later
+			else
+				--! EDGE CASE QUESTION: folder track and children is selected, users plain clicks parent: unselect itself and children?
+				focused_main_tracks = { [track.track_ref] = true } -- single out clicked track
+				if track.is_folder then
+					GetFolderChildren(track, focused_main_tracks)
+				end -- and select children, if folder
+			end
+		end
+	end
+
+	-- WHAT TO DO ABOUT IT
+	if next(focused_main_tracks) == nil then
+		RestoreAllState()
+	else
+		FocusSelected(should_solo)
+	end
+	last_alt_click = alt_held --? maybe when solo_selected turns off, set last_alt_click
 end
 
-local function RenderTrackList(entries, is_pinned)
-	for _, entry in ipairs(entries) do
-		local retval, p_selected =
-			ImGui.Selectable(ctx, entry.number .. " " .. TrackPrefix(entry) .. entry.name, IsEntrySelected(entry))
+local function RenderTrackList(set, focused_set, is_pinned)
+	for _, entry in ipairs(set) do
+		local retval = ImGui.Selectable(
+			ctx,
+			entry.number .. " " .. TrackPrefix(entry) .. entry.name,
+			IsEntrySelected(entry, focused_set)
+		)
 		if retval then
-			HandleClickTrack(entry, p_selected, is_pinned)
+			HandleClickTrack(entry, is_pinned)
 		end
 	end
 end
@@ -483,14 +479,14 @@ local function loop()
 		-- -FLT_MIN = right align
 		if ImGui.BeginListBox(ctx, "##tracks", -FLT_MIN, list_height) then
 			GatherAllTrackInfo()
-			RenderTrackList(pinned_tracks, true)
+			RenderTrackList(pinned_tracks, focused_pinned_tracks, true)
 			ImGui.Separator(ctx)
-			RenderTrackList(main_tracks, false)
+			RenderTrackList(main_tracks, focused_main_tracks, false)
 
 			ImGui.EndListBox(ctx)
 		end
 
-		------------------ OPTIONS CHECKBOXES
+		------------------------------ OPTIONS CHECKBOXES
 		local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
 		if focus_changed then
 			focus_view = focus_new
@@ -501,13 +497,14 @@ local function loop()
 			solo_selected = solo_selected_new
 			if not solo_selected_new then
 				UnsoloAll()
+				-- TODO: maybe when solo_selected turns off, set last_alt_click
 			end
 		end
 
 		local keep_pinned_change, keep_pinned_new = ImGui.Checkbox(ctx, "Keep pinned tracks", keep_pinned)
 		if keep_pinned_change then
 			keep_pinned = keep_pinned_new
-			if keep_pinned and GetNumFocusedPinnedTracks() == 0 then
+			if keep_pinned and next(focused_pinned_tracks) == nil then
 				AddPinnedTracks()
 				FocusSelected(solo_selected)
 			end
