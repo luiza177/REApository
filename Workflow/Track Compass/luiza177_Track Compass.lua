@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.1.0
+-- @version 0.1.1
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -33,8 +33,8 @@
 --   - expand/collapse folders
 --   - represent track color in list
 -- @changelog
---   - Pinned tracks are represented at the top of the list
---   - Ability to select which pinned tracks to focus
+--   - Fixed and refactored clicking behavior: pinned tracks are always multi-select
+--   - Unchecking Focus View now restores ALL state
 -- @provides
 --   [main] .
 
@@ -54,8 +54,8 @@ local pinned_tracks = {}
 local focused_pinned_tracks = {}
 local main_tracks = {}
 local focused_main_tracks = {}
-local clicked_tracks = {}
 local last_alt_click = false
+local last_main_click_ref = nil
 
 -- TODO: represent folder collapsed state
 ----------------------------------------------------------------------------
@@ -343,15 +343,18 @@ local function HandleClickTrack(track, is_pinned)
 					GetFolderChildren(track, focused_main_tracks)
 				end -- and select children, if folder
 			end
+			last_main_click_ref = nil
 		else -- single select
-			if IsSoleSelected(focused_main_tracks, track.track_ref) then -- more than one main track is already selected
+			if track.track_ref == last_main_click_ref then -- if single-select clicked the same track
 				focused_main_tracks = {} -- or to restore ALL state later
+				last_main_click_ref = nil
 			else
 				--! EDGE CASE QUESTION: folder track and children is selected, users plain clicks parent: unselect itself and children?
 				focused_main_tracks = { [track.track_ref] = true } -- single out clicked track
 				if track.is_folder then
 					GetFolderChildren(track, focused_main_tracks)
 				end -- and select children, if folder
+				last_main_click_ref = track.track_ref
 			end
 		end
 	end
@@ -362,7 +365,7 @@ local function HandleClickTrack(track, is_pinned)
 	else
 		FocusSelected(should_solo)
 	end
-	last_alt_click = alt_held --? maybe when solo_selected turns off, set last_alt_click
+	last_alt_click = alt_held
 end
 
 local function RenderTrackList(set, focused_set, is_pinned)
@@ -490,6 +493,9 @@ local function loop()
 		local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
 		if focus_changed then
 			focus_view = focus_new
+			if not focus_view then
+				RestoreAllState()
+			end -- TODO: make it an option (restore ALL on going back to nav mode)
 		end
 
 		local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
@@ -497,7 +503,6 @@ local function loop()
 			solo_selected = solo_selected_new
 			if not solo_selected_new then
 				UnsoloAll()
-				-- TODO: maybe when solo_selected turns off, set last_alt_click
 			end
 		end
 
