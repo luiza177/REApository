@@ -67,6 +67,7 @@ local keep_pinned = true
 ImGui.SetConfigVar(ctx, ImGui.ConfigVar_HoverStationaryDelay, 0.7)
 
 ---------------------------------------------------------------------------
+-- COLOR AND THEME METHODS
 local function SetAlpha(color, alpha)
 	-- alpha: 0.0 (fully transparent) to 1.0 (fully opaque)
 	local alpha_byte = math.floor(alpha * 255 + 0.5)
@@ -125,6 +126,7 @@ local function CaptureCurrentTheme()
 	}
 end
 ---------------------------------------------------------------------------
+-- BUSINESS LOGIC AND HELPERS
 local function UnsoloAll()
 	reaper.Main_OnCommand(40340, 0) -- Track: Unsolo all tracks
 end
@@ -156,6 +158,7 @@ local function RestoreAllState()
 	UnsoloAll()
 end
 
+-- MAIN LIST
 local function GetTrackName(track, i)
 	local i = i or nil
 	local _, name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
@@ -289,17 +292,6 @@ local function GetNumFocusedMainTracks()
 	return num_selected_main_tracks
 end
 
-local function GetNumFocusedTracks()
-	local num_selected_tracks = 0
-	for _, _ in ipairs(clicked_tracks) do
-		num_selected_tracks = num_selected_tracks + 1
-		-- reaper.ShowConsoleMsg("\niterating in clicked tracks: " .. num_selected_tracks)
-	end
-
-	-- reaper.ShowConsoleMsg("\n number of selected tracks: " .. num_selected_tracks)
-	return num_selected_tracks
-end
-
 local function AddPinnedTracks()
 	for _, pinned_track in ipairs(pinned_tracks) do
 		clicked_tracks[pinned_track.track_ref] = true
@@ -307,8 +299,6 @@ local function AddPinnedTracks()
 end
 
 local function HandleClickTrack(track, to_select, is_pinned)
-	-- reaper.ShowConsoleMsg("\ntrack: " .. track.name)
-	-- reaper.ShowConsoleMsg("\n  selecting: " .. tostring(to_select))
 	local mods = ImGui.GetKeyMods(ctx)
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
 	local shift_held = (mods & ImGui.Mod_Shift) ~= 0
@@ -316,63 +306,63 @@ local function HandleClickTrack(track, to_select, is_pinned)
 	local should_solo = alt_held or solo_selected
 
 	if focus_view then
+		-- if keeping pinned tracks and no tracks are currently focused, add pinned tracks
 		if focus_view and keep_pinned and next(clicked_tracks) == nil then
 			AddPinnedTracks()
 		end
 
 		if last_alt_click and not alt_held then
 			UnsoloAll()
-		end
+		end -- if focusing away from soloed tracks, unsolo all --! see last_alt_click below
 
-		if not ctrl_held then
-			if keep_pinned then
-				local num_focused_main_tracks = GetNumFocusedMainTracks()
-				if num_focused_main_tracks > 0 and not is_pinned then
-					for _, main_track in ipairs(main_tracks) do
+		if not ctrl_held then -- normal click
+			if keep_pinned then -- keeping pinned tracks
+				local num_focused_main_tracks = GetNumFocusedMainTracks() -- main tracks focused at the time of click
+				if num_focused_main_tracks > 0 and not is_pinned then -- one main track already focused, and clicked a main track
+					for _, main_track in ipairs(main_tracks) do -- remove main tracks from focused
 						clicked_tracks[main_track.track_ref] = nil
 					end
 					if not to_select and num_focused_main_tracks > 1 then
 						to_select = true
-					end
+					end -- if already selected, more than one main track was already selected/focused. Then exclusively select clicked track --! potential problem: pinned also falls here?
 				end
-			else
-				clicked_tracks = {}
+			else -- normal click and NOT keeping pinned tracks
+				clicked_tracks = {} -- start fresh
 			end
-		else
-			-- reaper.ShowConsoleMsg("\ncontrol clicked")
-			if is_pinned and GetNumFocusedPinnedTracks() == 0 then
-				keep_pinned = true
-				-- reaper.ShowConsoleMsg("\nenable keep pinned")
+		else -- ctrl click = multi-selecting
+			if is_pinned and GetNumFocusedPinnedTracks() == 0 then -- if clicked a pinned track and no pinned tracks are focused
+				keep_pinned = true -- enable keep pinnned
 			end
 		end
 
-		if to_select then
-			clicked_tracks[track.track_ref] = true
-			if track.is_folder then
+		if to_select then -- clicked track was not already selected
+			clicked_tracks[track.track_ref] = true -- then select it
+			if track.is_folder then -- if clicked track is a folder, include its children
 				GetFolderChildren(track)
 			end
-		else
-			clicked_tracks[track.track_ref] = nil
+		else -- clicked track was already selected
+			clicked_tracks[track.track_ref] = nil -- then unselect it
 		end
 
-		if GetNumFocusedPinnedTracks() == 0 then
-			keep_pinned = false
+		if GetNumFocusedPinnedTracks() == 0 then -- if no pinned tracks remain focused
+			keep_pinned = false -- turn off keep_pinned
 		end
 
+		-- if no tracks are focused or clicked a pinned track and no main tracks remain focused
 		if next(clicked_tracks) == nil or keep_pinned and GetNumFocusedMainTracks() < 1 then
-			RestoreAllState()
+			RestoreAllState() -- then restore ALL state
 		else
-			FocusSelected(should_solo)
+			FocusSelected(should_solo) -- or focus
 		end
-		last_alt_click = alt_held
+		last_alt_click = alt_held -- keep track whether last interaction was a solo action --! should consider whetehr solo_selected was on and is now off?
 	else
-		if ctrl_held then
+		if ctrl_held then -- multi-select
 			if reaper.IsTrackSelected(track.track_ref) then
 				reaper.SetTrackSelected(track.track_ref, false)
 			else
 				reaper.SetTrackSelected(track.track_ref, true)
 			end
-		else
+		else -- single select
 			reaper.SetOnlyTrackSelected(track.track_ref)
 		end
 		if should_solo then
@@ -382,7 +372,17 @@ local function HandleClickTrack(track, to_select, is_pinned)
 	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 end
 
----------------------------------------------------------------------------
+local function RenderTrackList(entries, is_pinned)
+	for _, entry in ipairs(entries) do
+		local retval, p_selected =
+			ImGui.Selectable(ctx, entry.number .. " " .. TrackPrefix(entry) .. entry.name, IsEntrySelected(entry))
+		if retval then
+			HandleClickTrack(entry, p_selected, is_pinned)
+		end
+	end
+end
+
+--==============================================================
 local function loop()
 	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 2)
 	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 8)
@@ -449,8 +449,9 @@ local function loop()
 
 		--------------------------- TOP BUTTONS
 		ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
-
 		local capture_button_width = 20
+
+		-- ALL BUTTON
 		if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
 			RestoreAllState()
 		end
@@ -461,6 +462,7 @@ local function loop()
 
 		ImGui.SameLine(ctx)
 
+		-- CAPTURE BUTTON
 		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.automation_recording, 0.5))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Theme_colors.automation_recording)
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.automation_recording, 0.67))
@@ -481,27 +483,9 @@ local function loop()
 		-- -FLT_MIN = right align
 		if ImGui.BeginListBox(ctx, "##tracks", -FLT_MIN, list_height) then
 			GatherAllTrackInfo()
-			for _, entry in ipairs(pinned_tracks) do
-				local retval, p_selected = ImGui.Selectable(
-					ctx,
-					entry.number .. " " .. TrackPrefix(entry) .. entry.name,
-					IsEntrySelected(entry)
-				)
-				if retval then
-					HandleClickTrack(entry, p_selected, true)
-				end
-			end
+			RenderTrackList(pinned_tracks, true)
 			ImGui.Separator(ctx)
-			for _, entry in ipairs(main_tracks) do
-				local retval, p_selected = ImGui.Selectable(
-					ctx,
-					entry.number .. " " .. TrackPrefix(entry) .. entry.name,
-					IsEntrySelected(entry)
-				)
-				if retval then
-					HandleClickTrack(entry, p_selected, false)
-				end
-			end
+			RenderTrackList(main_tracks, false)
 
 			ImGui.EndListBox(ctx)
 		end
