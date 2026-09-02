@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="87dcca7134c51869622b79d25f18de8b8c1aaa9a">
+<index version="1" name="Luiza177's REApository" commit="66f66f91b64807d2092b1f0548c5371cbf6046df">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -110,17 +110,17 @@
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 (Current?) Limitations:\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No click-and-drag to select\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No toggling folder states\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Requires taking another snapshot when new tracks are created\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Does not represent folder collapsed state\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Requires taking another snapshot when new tracks are created\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Roadmap:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Remember state when quit\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Auto add newly created tracks\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Option to not show hidden or MCP-only tracks in list\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Remember state when quit\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab expand/collapse folders\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Save snapshot with project\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab keyboard navigation\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab allow drag-select\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab represent solo state in list\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab search + shortcuts\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab expand/collapse folders\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab represent track color in list\sa180\par}
 }
 ]]></description>
@@ -151,6 +151,10 @@
         <changelog><![CDATA[- Fixed bug unintentionally adding focused pinned tracks with Keep Pinned checkbox
 - Refined Keep Pinned track adding/removing logic]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/87dcca7134c51869622b79d25f18de8b8c1aaa9a/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.1.3" author="Luiza177" time="2026-09-02T16:18:30Z">
+        <changelog><![CDATA[- Represents folder collapsed state]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/66f66f91b64807d2092b1f0548c5371cbf6046df/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
