@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.1.1
+-- @version 0.1.2
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -33,8 +33,8 @@
 --   - expand/collapse folders
 --   - represent track color in list
 -- @changelog
---   - Fixed and refactored clicking behavior: pinned tracks are always multi-select
---   - Unchecking Focus View now restores ALL state
+--   - Fixed bug unintentionally adding focused pinned tracks with Keep Pinned checkbox
+--   - Refined Keep Pinned track adding/removing logic
 -- @provides
 --   [main] .
 
@@ -319,9 +319,7 @@ local function HandleClickTrack(track, is_pinned)
 			focused_pinned_tracks[track.track_ref] = nil -- unselect it
 		else
 			focused_pinned_tracks[track.track_ref] = true -- select it
-			if track.is_folder then
-				GetFolderChildren(track, focused_pinned_tracks)
-			end -- and select children, if folder
+			-- if track.is_folder then GetFolderChildren(track, focused_pinned_tracks) end -- and select children, if folder
 		end
 		-- if no pinned tracks remain focused, disable keep_pinned
 		if next(focused_pinned_tracks) == nil then
@@ -349,7 +347,6 @@ local function HandleClickTrack(track, is_pinned)
 				focused_main_tracks = {} -- or to restore ALL state later
 				last_main_click_ref = nil
 			else
-				--! EDGE CASE QUESTION: folder track and children is selected, users plain clicks parent: unselect itself and children?
 				focused_main_tracks = { [track.track_ref] = true } -- single out clicked track
 				if track.is_folder then
 					GetFolderChildren(track, focused_main_tracks)
@@ -509,8 +506,16 @@ local function loop()
 		local keep_pinned_change, keep_pinned_new = ImGui.Checkbox(ctx, "Keep pinned tracks", keep_pinned)
 		if keep_pinned_change then
 			keep_pinned = keep_pinned_new
-			if keep_pinned and next(focused_pinned_tracks) == nil then
+			if
+				focus_view
+				and keep_pinned
+				and next(focused_main_tracks) ~= nil
+				and next(focused_pinned_tracks) == nil
+			then
 				AddPinnedTracks()
+				FocusSelected(solo_selected)
+			elseif focus_view and not keep_pinned and next(focused_pinned_tracks) ~= nil then
+				focused_pinned_tracks = {}
 				FocusSelected(solo_selected)
 			end
 		end
