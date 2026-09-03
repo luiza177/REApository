@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="d60f167a08b8e25ba388961d42fc334de2c6ed92">
+<index version="1" name="Luiza177's REApository" commit="1dbd39b23fd45841ed4939681bed417942904976">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -111,10 +111,8 @@
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No click-and-drag to select\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No toggling folder states\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Roadmap:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Option to not show hidden or MCP-only tracks in list\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Remember state when quit\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab expand/collapse folders\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Save snapshot with project\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab expand/collapse folders\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab keyboard navigation\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab allow drag-select\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab represent solo state in list\par}
@@ -157,6 +155,16 @@
       <version name="0.1.4" author="Luiza177" time="2026-09-03T06:24:52Z">
         <changelog><![CDATA[- Defaults to showing TCP/MCP of newly created tracks, hide and recapture manually if different configuration]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/d60f167a08b8e25ba388961d42fc334de2c6ed92/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.1.5" author="Luiza177" time="2026-09-03T07:33:10Z">
+        <changelog><![CDATA[- Added option to show/hide hidden tracks in track list
+- Added option to show/hide MCP-only tracks in track list
+- Added option to show only folder parents in track list]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/75636dcc69d93b1e61e961e6c574e583cc295098/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.1.6" author="Luiza177" time="2026-09-03T09:37:35Z">
+        <changelog><![CDATA[- Rememebers option checkbox states (except solo)]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/1dbd39b23fd45841ed4939681bed417942904976/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
