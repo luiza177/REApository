@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.1.5
+-- @version 0.1.6
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -21,7 +21,6 @@
 --   - No click-and-drag to select
 --   - No toggling folder states
 --   ## Roadmap:
---   - Remember state when quit
 --   - Save snapshot with project
 --   - expand/collapse folders
 --   - keyboard navigation
@@ -30,9 +29,7 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Added option to show/hide hidden tracks in track list
---   - Added option to show/hide MCP-only tracks in track list
---   - Added option to show only folder parents in track list
+--   - Rememebers option checkbox states (except solo)
 -- @provides
 --   [main] .
 
@@ -45,6 +42,7 @@ local ImGui = require("imgui")("0.10")
 
 local ctx = ImGui.CreateContext("Track Compass")
 local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
+local ext_name = "luiza177.TrackCompass"
 
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
@@ -61,13 +59,26 @@ local focus_view = true
 local solo_selected = false
 local keep_pinned = true
 local show_mcp_only_tracks = true
-local show_hidden_tracks = true
-local only_folder_parents = true
+local show_hidden_tracks = false
+local only_folder_parents = false
 
 ---------------------------------------------------------------------------
 -- CONFIG VARS
 ImGui.SetConfigVar(ctx, ImGui.ConfigVar_HoverStationaryDelay, 0.7)
 
+---------------------------------------------------------------------------
+-- GENERAL HELPERS
+local function SaveBoolState(key, value)
+	reaper.SetExtState(ext_name, key, value and "1" or "0", true)
+end
+
+local function LoadBoolState(key, default)
+	local value = reaper.GetExtState(ext_name, key)
+	if value == "" then
+		return default
+	end
+	return value == "1"
+end
 ---------------------------------------------------------------------------
 -- COLOR AND THEME METHODS
 local function SetAlpha(color, alpha)
@@ -525,6 +536,7 @@ local function loop()
 		local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
 		if focus_changed then
 			focus_view = focus_new
+			SaveBoolState("focus_view", focus_view)
 			if not focus_view then
 				RestoreAllState()
 			end
@@ -545,6 +557,7 @@ local function loop()
 		local keep_pinned_change, keep_pinned_new = ImGui.Checkbox(ctx, "Keep pinned tracks", keep_pinned)
 		if keep_pinned_change then
 			keep_pinned = keep_pinned_new
+			SaveBoolState("keep_pinned", keep_pinned)
 			if
 				focus_view
 				and keep_pinned
@@ -565,6 +578,7 @@ local function loop()
 			ImGui.Checkbox(ctx, "Show MCP-only", show_mcp_only_tracks)
 		if show_mcp_only_tracks_change then
 			show_mcp_only_tracks = show_mcp_only_tracks_new
+			SaveBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
 		end
 		ImGui.SetItemTooltip(ctx, "Show tracks with only the MCP (eg. FX return tracks) in the track list")
 
@@ -572,6 +586,7 @@ local function loop()
 		local show_hidden_tracks_change, show_hidden_tracks_new = ImGui.Checkbox(ctx, "Show hidden", show_hidden_tracks)
 		if show_hidden_tracks_change then
 			show_hidden_tracks = show_hidden_tracks_new
+			SaveBoolState("show_hidden_tracks", show_hidden_tracks)
 		end
 		ImGui.SetItemTooltip(ctx, "Show hidden tracks in track list")
 
@@ -580,6 +595,7 @@ local function loop()
 			ImGui.Checkbox(ctx, "Only folders", only_folder_parents)
 		if only_folder_parents_change then
 			only_folder_parents = only_folders_parents_new
+			SaveBoolState("only_folder_parents", only_folder_parents)
 		end
 		ImGui.SetItemTooltip(ctx, "Show only folder parents in track list")
 
@@ -596,7 +612,15 @@ local function loop()
 	end
 end
 
-CaptureAllState() -- TODO: on project change?
-CaptureCurrentTheme() -- TODO: on theme change
+local function Init()
+	CaptureAllState() -- TODO: on project change?
+	CaptureCurrentTheme() -- TODO: on theme change
+	focus_view = LoadBoolState("focus_view", focus_view)
+	keep_pinned = LoadBoolState("keep_pinned", keep_pinned)
+	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
+	show_hidden_tracks = LoadBoolState("show_hidden_tracks", show_hidden_tracks)
+	only_folder_parents = LoadBoolState("only_folder_parents", only_folder_parents)
+end
 
+Init()
 reaper.defer(loop)
