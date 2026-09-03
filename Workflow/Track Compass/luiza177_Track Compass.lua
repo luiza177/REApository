@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.1.3
+-- @version 0.1.4
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -20,9 +20,7 @@
 --   ## (Current?) Limitations:
 --   - No click-and-drag to select
 --   - No toggling folder states
---   - Requires taking another snapshot when new tracks are created
 --   ## Roadmap:
---   - Auto add newly created tracks
 --   - Option to not show hidden or MCP-only tracks in list
 --   - Remember state when quit
 --   - expand/collapse folders
@@ -33,7 +31,7 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Represents folder collapsed state
+--   - Defaults to showing TCP/MCP of newly created tracks, hide and recapture manually if different configuration
 -- @provides
 --   [main] .
 
@@ -151,11 +149,11 @@ local function RestoreAllState()
 		if saved_track_state then
 			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", all_snapshot[track].show_tcp)
 			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", all_snapshot[track].show_mcp)
-			-- else
-			--     -- FIXME: show and add to all_snapshot? integer?
-			--     reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
-			--     reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 1)
-			--     all_snapshot[track] = { show_tcp = 1, show_mcp = 1 }
+		else
+			-- FIXME: show and add to all_snapshot? integer?
+			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
+			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 1)
+			all_snapshot[track] = { show_tcp = 1, show_mcp = 1 }
 		end
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
@@ -243,8 +241,7 @@ local function FocusSelected(should_solo)
 			else
 				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", 1)
 				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", 1)
-				-- all_snapshot[track] = { show_tcp = 1, show_mcp = 1 }
-				-- FIXME: show and add to all_snapshot
+				all_snapshot[track] = { show_tcp = 1, show_mcp = 1 } -- ? do we need this here or only in RestoreAllState?
 			end
 			if should_solo then
 				reaper.SetMediaTrackInfo_Value(track_ref, "I_SOLO", 1)
@@ -355,7 +352,7 @@ local function HandleClickTrack(track, is_pinned)
 	end
 
 	-- WHAT TO DO ABOUT IT
-	if next(focused_main_tracks) == nil then -- FIXME: and not keep_pinned???
+	if next(focused_main_tracks) == nil then -- FIXME: and not keep_pinned??? (for pinned tracks not selectable)
 		RestoreAllState()
 	else
 		FocusSelected(should_solo)
