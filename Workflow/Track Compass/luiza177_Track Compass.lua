@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.1.4
+-- @version 0.1.5
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -21,17 +21,18 @@
 --   - No click-and-drag to select
 --   - No toggling folder states
 --   ## Roadmap:
---   - Option to not show hidden or MCP-only tracks in list
 --   - Remember state when quit
---   - expand/collapse folders
 --   - Save snapshot with project
+--   - expand/collapse folders
 --   - keyboard navigation
 --   - allow drag-select
 --   - represent solo state in list
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Defaults to showing TCP/MCP of newly created tracks, hide and recapture manually if different configuration
+--   - Added option to show/hide hidden tracks in track list
+--   - Added option to show/hide MCP-only tracks in track list
+--   - Added option to show only folder parents in track list
 -- @provides
 --   [main] .
 
@@ -59,6 +60,9 @@ local last_main_click_ref = nil
 local focus_view = true
 local solo_selected = false
 local keep_pinned = true
+local show_mcp_only_tracks = true
+local show_hidden_tracks = true
+local only_folder_parents = true
 
 ---------------------------------------------------------------------------
 -- CONFIG VARS
@@ -160,6 +164,14 @@ local function RestoreAllState()
 	focused_main_tracks = {}
 	focused_pinned_tracks = {}
 	UnsoloAll()
+end
+
+local function IsMCPOnly(track_ref)
+	return all_snapshot[track_ref].show_mcp == 1 and all_snapshot[track_ref].show_tcp == 0
+end
+
+local function IsHidden(track_ref)
+	return all_snapshot[track_ref].show_mcp == 0 and all_snapshot[track_ref].show_tcp == 0
 end
 
 -- MAIN LIST
@@ -360,11 +372,27 @@ local function HandleClickTrack(track, is_pinned)
 	last_alt_click = alt_held
 end
 
+local function PassesDisplayFilters(track)
+	if only_folder_parents and not track.is_folder then
+		return false
+	end
+	if not show_mcp_only_tracks and IsMCPOnly(track.track_ref) then
+		return false
+	end
+	if not show_hidden_tracks and IsHidden(track.track_ref) then
+		return false
+	end
+	return true
+end
+
 -- FIXME: EDGE CAGE when folder parent is pinned, but children are not (REAPER behavior)
 local function RenderTrackList(set, focused_set, is_pinned)
 	local skip_depth = nil
+
 	for _, entry in ipairs(set) do
-		if is_pinned or not skip_depth or entry.depth < skip_depth then
+		local parent_is_collapsed = not is_pinned and skip_depth ~= nil and entry.depth >= skip_depth
+
+		if not parent_is_collapsed and PassesDisplayFilters(entry) then
 			local retval = ImGui.Selectable(
 				ctx,
 				entry.number .. " " .. TrackPrefix(entry) .. entry.name,
@@ -373,9 +401,12 @@ local function RenderTrackList(set, focused_set, is_pinned)
 			if retval then
 				HandleClickTrack(entry, is_pinned)
 			end
-			skip_depth = nil
-			if entry.is_folder and entry.is_collapsed then
-				skip_depth = entry.depth + 1
+
+			if not is_pinned and not parent_is_collapsed then
+				skip_depth = nil
+				if entry.is_folder and entry.is_collapsed then
+					skip_depth = entry.depth + 1
+				end
 			end
 		end
 	end
@@ -439,7 +470,7 @@ local function loop()
 		)
 
 		--------------------------- WINDOW SIZING
-		local NUM_CHECKBOXES = 3
+		local NUM_CHECKBOXES = 6
 		local footer_height = ImGui.GetFrameHeightWithSpacing(ctx) * NUM_CHECKBOXES
 		local list_height = -footer_height
 
@@ -490,14 +521,17 @@ local function loop()
 		end
 
 		------------------------------ OPTIONS CHECKBOXES
+		-- FOCUS VIEW
 		local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
 		if focus_changed then
 			focus_view = focus_new
 			if not focus_view then
 				RestoreAllState()
-			end -- TODO: make it an option (restore ALL on going back to nav mode)
+			end
 		end
+		ImGui.SetItemTooltip(ctx, "Show only selected tracks in Arrange view and Mixer")
 
+		-- SOLO SELECTED
 		local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
 		if solo_selected_change then
 			solo_selected = solo_selected_new
@@ -505,7 +539,9 @@ local function loop()
 				UnsoloAll()
 			end
 		end
+		ImGui.SetItemTooltip(ctx, "Exclusively solo selected tracks")
 
+		-- KEEP PINNED
 		local keep_pinned_change, keep_pinned_new = ImGui.Checkbox(ctx, "Keep pinned tracks", keep_pinned)
 		if keep_pinned_change then
 			keep_pinned = keep_pinned_new
@@ -523,6 +559,29 @@ local function loop()
 			end
 		end
 		ImGui.SetItemTooltip(ctx, "Keep pinned tracks while focusing")
+
+		-- SHOW MCP-only
+		local show_mcp_only_tracks_change, show_mcp_only_tracks_new =
+			ImGui.Checkbox(ctx, "Show MCP-only", show_mcp_only_tracks)
+		if show_mcp_only_tracks_change then
+			show_mcp_only_tracks = show_mcp_only_tracks_new
+		end
+		ImGui.SetItemTooltip(ctx, "Show tracks with only the MCP (eg. FX return tracks) in the track list")
+
+		-- SHOW HIDDEN
+		local show_hidden_tracks_change, show_hidden_tracks_new = ImGui.Checkbox(ctx, "Show hidden", show_hidden_tracks)
+		if show_hidden_tracks_change then
+			show_hidden_tracks = show_hidden_tracks_new
+		end
+		ImGui.SetItemTooltip(ctx, "Show hidden tracks in track list")
+
+		-- ONLY SHOW FOLDERS
+		local only_folder_parents_change, only_folders_parents_new =
+			ImGui.Checkbox(ctx, "Only folders", only_folder_parents)
+		if only_folder_parents_change then
+			only_folder_parents = only_folders_parents_new
+		end
+		ImGui.SetItemTooltip(ctx, "Show only folder parents in track list")
 
 		ImGui.PopStyleVar(ctx, 1) -- frame border
 		---------------------
