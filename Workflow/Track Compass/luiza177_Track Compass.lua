@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.1.6
+-- @version 0.1.7
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -21,7 +21,6 @@
 --   - No click-and-drag to select
 --   - No toggling folder states
 --   ## Roadmap:
---   - Save snapshot with project
 --   - expand/collapse folders
 --   - keyboard navigation
 --   - allow drag-select
@@ -29,7 +28,7 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Rememebers option checkbox states (except solo)
+--   - Saves and loads ALL state with/from project
 -- @provides
 --   [main] .
 
@@ -79,6 +78,56 @@ local function LoadBoolState(key, default)
 	end
 	return value == "1"
 end
+
+local function GetTrackName(track, i)
+	local i = i or nil
+	local _, name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
+	if name == "" then
+		name = "Track " .. i + 1
+	end
+	return name
+end
+
+local function GatherAllTrackInfo() --? add param for getting tcp/mcp if needed?
+	local depth = 0
+	pinned_tracks = {}
+	main_tracks = {}
+
+	for i = 0, reaper.CountTracks(0) - 1 do
+		local track_ref = reaper.GetTrack(0, i)
+		local depth_change = reaper.GetMediaTrackInfo_Value(track_ref, "I_FOLDERDEPTH")
+
+		local name = GetTrackName(track_ref, i)
+		local _, guid = reaper.GetSetMediaTrackInfo_String(track_ref, "GUID", "", false)
+		local number = i + 1 --? or 0 based?
+		local is_folder = depth_change == 1
+		local color = reaper.GetMediaTrackInfo_Value(track_ref, "I_CUSTOMCOLOR") -- OS dependent color|0x1000000 (i.e. ColorToNative(r,g,b)|0x1000000). If you do not |0x1000000, then it will not be used, but will store the color
+		local is_collapsed = reaper.GetMediaTrackInfo_Value(track_ref, "I_FOLDERCOMPACT") == 2
+
+		local track_info = {
+			track_ref = track_ref,
+			guid = guid,
+			name = name,
+			number = number,
+			depth = depth,
+			is_folder = is_folder,
+			is_collapsed = is_collapsed,
+			color = color,
+			-- showing_tcp = showing_tcp
+			-- showing_mcp = showing_mcp
+		}
+
+		local is_pinned = reaper.GetMediaTrackInfo_Value(track_ref, "B_TCPPIN") == 1
+		if is_pinned then
+			pinned_tracks[#pinned_tracks + 1] = track_info
+		else
+			main_tracks[#main_tracks + 1] = track_info
+		end
+
+		depth = depth + depth_change
+	end
+end
+
 ---------------------------------------------------------------------------
 -- COLOR AND THEME METHODS
 local function SetAlpha(color, alpha)
@@ -148,28 +197,45 @@ local function SoloExclusive()
 	reaper.Main_OnCommand(40728, 0) -- Track: Solo tracks
 end
 
-local function CaptureAllState()
-	for i = 0, reaper.CountTracks(0) - 1 do
-		local track = reaper.GetTrack(0, i)
-		local show_tcp = reaper.GetMediaTrackInfo_Value(track, "B_SHOWINTCP")
-		local show_mcp = reaper.GetMediaTrackInfo_Value(track, "B_SHOWINMIXER")
-		all_snapshot[track] = { show_tcp = show_tcp, show_mcp = show_mcp }
+local function SaveAllState()
+	reaper.SetProjExtState(0, ext_name, "", "") -- clear existing data
+	reaper.ShowConsoleMsg("\n\nclearing existing data...")
+	for track_ref, entry in pairs(all_snapshot) do
+		local value = entry.show_tcp .. ";" .. entry.show_mcp
+		reaper.SetProjExtState(0, ext_name, entry.guid, value)
+		reaper.ShowConsoleMsg("\nsaving data for GUID: " .. entry.guid .. ", value: " .. value)
 	end
 end
 
-local function RestoreAllState()
+local function CaptureAllState() --? include overwrite param?
 	for i = 0, reaper.CountTracks(0) - 1 do
-		local track = reaper.GetTrack(0, i)
-		local saved_track_state = all_snapshot[track]
+		local track_ref = reaper.GetTrack(0, i)
+		local show_tcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP")
+		local show_mcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER")
+		local _, guid = reaper.GetSetMediaTrackInfo_String(track_ref, "GUID", "", false)
+		all_snapshot[track_ref] = { show_tcp = show_tcp, show_mcp = show_mcp, guid = guid } --? or use guid as key?
+	end
+	SaveAllState()
+end
+
+local function RestoreAllState()
+	local save_after = false
+	for i = 0, reaper.CountTracks(0) - 1 do
+		local track_ref = reaper.GetTrack(0, i)
+		local saved_track_state = all_snapshot[track_ref]
 		if saved_track_state then
-			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", all_snapshot[track].show_tcp)
-			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", all_snapshot[track].show_mcp)
+			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", all_snapshot[track_ref].show_tcp)
+			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", all_snapshot[track_ref].show_mcp)
 		else
-			-- FIXME: show and add to all_snapshot? integer?
-			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
-			reaper.SetMediaTrackInfo_Value(track, "B_SHOWINMIXER", 1)
-			all_snapshot[track] = { show_tcp = 1, show_mcp = 1 }
+			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", 1)
+			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", 1)
+			local _, guid = reaper.GetSetMediaTrackInfo_String(track_ref, "GUID", "", false)
+			all_snapshot[track_ref] = { show_tcp = 1, show_mcp = 1, guid = guid }
+			save_after = true
 		end
+	end
+	if save_after then
+		SaveAllState()
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
 	focused_main_tracks = {}
@@ -178,23 +244,20 @@ local function RestoreAllState()
 end
 
 local function IsMCPOnly(track_ref)
+	if not all_snapshot[track_ref] then
+		return false
+	end
 	return all_snapshot[track_ref].show_mcp == 1 and all_snapshot[track_ref].show_tcp == 0
 end
 
 local function IsHidden(track_ref)
+	if not all_snapshot[track_ref] then
+		return false
+	end
 	return all_snapshot[track_ref].show_mcp == 0 and all_snapshot[track_ref].show_tcp == 0
 end
 
 -- MAIN LIST
-local function GetTrackName(track, i)
-	local i = i or nil
-	local _, name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
-	if name == "" then
-		name = "Track " .. i + 1
-	end
-	return name
-end
-
 local function TrackPrefix(track)
 	local indent_str = string.rep("    ", track.depth)
 	local folder_str = ""
@@ -202,47 +265,6 @@ local function TrackPrefix(track)
 		folder_str = track.is_collapsed and "▸ " or "▾ "
 	end
 	return indent_str .. folder_str
-end
-
-local function GatherAllTrackInfo()
-	local depth = 0
-	pinned_tracks = {}
-	main_tracks = {}
-
-	for i = 0, reaper.CountTracks(0) - 1 do
-		local track = reaper.GetTrack(0, i)
-		local depth_change = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH")
-
-		local name = GetTrackName(track, i)
-		local number = i + 1 --? or 0 based?
-		local is_folder = depth_change == 1
-		local color = reaper.GetMediaTrackInfo_Value(track, "I_CUSTOMCOLOR") -- OS dependent color|0x1000000 (i.e. ColorToNative(r,g,b)|0x1000000). If you do not |0x1000000, then it will not be used, but will store the color
-		local is_collapsed = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERCOMPACT") == 2
-
-		local track_info = {
-			track_ref = track,
-			name = name,
-			number = number,
-			depth = depth,
-			is_folder = is_folder,
-			is_collapsed = is_collapsed,
-			color = color,
-		}
-
-		-- reaper.ShowConsoleMsg("\n" .. number .. " " .. name .. ":")
-		-- reaper.ShowConsoleMsg("\n" .. "    depth:" .. depth)
-		-- reaper.ShowConsoleMsg("\n" .. "    is_folder:" .. tostring(is_folder))
-		-- reaper.ShowConsoleMsg("\n" .. "    is_collapsed:" .. tostring(is_collapsed))
-
-		local is_pinned = reaper.GetMediaTrackInfo_Value(track, "B_TCPPIN") == 1
-		if is_pinned then
-			pinned_tracks[#pinned_tracks + 1] = track_info
-		else
-			main_tracks[#main_tracks + 1] = track_info
-		end
-
-		depth = depth + depth_change
-	end
 end
 
 local function IsEntrySelected(track, focused_set)
@@ -264,7 +286,6 @@ local function FocusSelected(should_solo)
 			else
 				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", 1)
 				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", 1)
-				all_snapshot[track] = { show_tcp = 1, show_mcp = 1 } -- ? do we need this here or only in RestoreAllState?
 			end
 			if should_solo then
 				reaper.SetMediaTrackInfo_Value(track_ref, "I_SOLO", 1)
@@ -284,10 +305,10 @@ local function GetFolderChildren(track, set)
 	local depth_to_select = track.depth + 1
 	local current_depth = depth_to_select
 	for i = track.number, reaper.CountTracks(0) - 1 do
-		local other_track = reaper.GetTrack(0, i)
-		local folder_depth_state = reaper.GetMediaTrackInfo_Value(other_track, "I_FOLDERDEPTH")
+		local other_track_ref = reaper.GetTrack(0, i)
+		local folder_depth_state = reaper.GetMediaTrackInfo_Value(other_track_ref, "I_FOLDERDEPTH")
 
-		set[other_track] = true
+		set[other_track_ref] = true
 
 		current_depth = current_depth + folder_depth_state
 		if current_depth < depth_to_select then
@@ -612,14 +633,70 @@ local function loop()
 	end
 end
 
+local function ReadProjStoredState(track)
+	local retval, value = reaper.GetProjExtState(0, ext_name, track.guid)
+	if retval == 1 then
+		local show_tcp_str, show_mcp_str = value:match("([^;]+);([^;]+)")
+		reaper.ShowConsoleMsg(
+			"\nreading value for "
+				.. track.name
+				.. ", GUID: "
+				.. track.guid
+				.. ", show TCP: "
+				.. show_tcp_str
+				.. ", show MCP: "
+				.. show_mcp_str
+		)
+		all_snapshot[track.track_ref] = {
+			show_tcp = tonumber(show_tcp_str),
+			show_mcp = tonumber(show_mcp_str),
+			guid = track.guid,
+		}
+	else
+		reaper.ShowConsoleMsg("\nNo value for " .. track.name .. ", GUID: " .. track.guid .. " was found!")
+
+		-- all_snapshot[track.track_ref] = {
+		--     show_tcp = 1,
+		--     show_mcp = 1,
+		--     guid = track.guid
+		-- }
+		-- SaveAllState()
+	end
+	return retval
+end
+
+local function LoadAllState()
+	GatherAllTrackInfo()
+	local loaded_data_entries = 0
+	for _, entry in ipairs(pinned_tracks) do
+		loaded_data_entries = loaded_data_entries + ReadProjStoredState(entry)
+		--? count and store discrepancies P
+	end
+	for _, entry in ipairs(main_tracks) do
+		loaded_data_entries = loaded_data_entries + ReadProjStoredState(entry)
+		--? count and store discrepancies M
+	end
+	-- TODO?: if no data for one or more of the tracks, save after loading
+	-- TODO?: depending on read, derive state? ==> if not the save as ALL, then focus on discrepancies?
+	return loaded_data_entries
+end
+
 local function Init()
-	CaptureAllState() -- TODO: on project change?
 	CaptureCurrentTheme() -- TODO: on theme change
 	focus_view = LoadBoolState("focus_view", focus_view)
 	keep_pinned = LoadBoolState("keep_pinned", keep_pinned)
 	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
 	show_hidden_tracks = LoadBoolState("show_hidden_tracks", show_hidden_tracks)
 	only_folder_parents = LoadBoolState("only_folder_parents", only_folder_parents)
+	local loaded_data_entries = LoadAllState()
+	if loaded_data_entries < reaper.CountTracks(0) then -- TODO: do something about partial data
+		reaper.ShowMessageBox(
+			"Capturing All state as project currently is",
+			"Track Compass: No or incomplete track data",
+			0
+		)
+		CaptureAllState() -- TODO: on project change? Load button? when no track matches?
+	end
 end
 
 Init()
