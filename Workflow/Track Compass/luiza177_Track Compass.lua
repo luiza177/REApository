@@ -24,7 +24,6 @@
 --   - expand/collapse folders
 --   - keyboard navigation
 --   - allow drag-select
---   - represent solo state in list
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
@@ -32,6 +31,8 @@
 --   - Detects project change
 --   - Prompts user to capture ALL state when new project with no saved data is loaded
 --   - CAVEAT: if a project was saved in a focused state, that state does not get updated on load
+--   - Better track list coloring and spacing
+--   - Solo state reflected in track number
 -- @provides
 --   [main] .
 
@@ -228,13 +229,13 @@ local function SaveAllState()
 	end
 end
 
-local function CaptureAllState(overwrite)
-	if overwrite then
+local function CaptureAllState(clear)
+	if clear then
 		all_snapshot = {}
 	end
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track_ref = reaper.GetTrack(0, i)
-		if all_snapshot[track_ref] == nil or overwrite then
+		if all_snapshot[track_ref] == nil then
 			local show_tcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP")
 			local show_mcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER")
 			local _, guid = reaper.GetSetMediaTrackInfo_String(track_ref, "GUID", "", false)
@@ -443,41 +444,62 @@ local function PassesDisplayFilters(track)
 	return true
 end
 
--- Q: EDGE CAGE when folder parent is pinned, but children are not (REAPER behavior)
-local function RenderTrackList(set, focused_set, is_pinned)
+-- Q: EDGE CAGE when folder parent is pinned, but children are not (REAPER behavior) --> collapse in main somehow?
+local function SetupTrackListTableColumns()
+	ImGui.TableSetupColumn(ctx, "Track #", ImGui.TableColumnFlags_WidthFixed)
+	ImGui.TableSetupColumn(ctx, "Name", ImGui.TableColumnFlags_WidthStretch)
+end
+
+local function RenderTrackListRow(entry, focused_set, is_pinned)
+	ImGui.TableNextRow(ctx)
+
+	if ImGui.TableSetColumnIndex(ctx, 0) then
+		local is_soloed = reaper.GetMediaTrackInfo_Value(entry.track_ref, "I_SOLO") ~= 0
+		local number_color = is_soloed and 0xFF4040FF or 0xFFFFFFFF -- TODO: incorporate in Theme
+		ImGui.PushStyleColor(ctx, ImGui.Col_Text, SetAlpha(number_color, 0.5))
+		ImGui.Text(ctx, tostring(entry.number))
+		ImGui.PopStyleColor(ctx, 1)
+	end
+
+	if ImGui.TableSetColumnIndex(ctx, 1) then
+		local retval = ImGui.Selectable(
+			ctx,
+			TrackPrefix(entry) .. entry.name,
+			IsEntrySelected(entry, focused_set),
+			ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
+		)
+		if retval then
+			HandleClickTrack(entry, is_pinned)
+		end
+	end
+end
+
+local function RenderTrackListTable(table_id, set, focused_set, is_pinned)
+	local table_flags = not is_pinned and ImGui.TableFlags_ScrollY or nil
+	if not ImGui.BeginTable(ctx, table_id, 2, table_flags) then
+		return
+	end
+
+	SetupTrackListTableColumns()
+
 	local skip_depth = nil
 
 	for _, entry in ipairs(set) do
 		local parent_is_collapsed = not is_pinned and skip_depth ~= nil and entry.depth >= skip_depth
 
 		if not parent_is_collapsed and PassesDisplayFilters(entry) then
-			local retval = ImGui.Selectable(
-				ctx,
-				entry.number .. " " .. TrackPrefix(entry) .. entry.name,
-				IsEntrySelected(entry, focused_set)
-			)
-			if retval then
-				HandleClickTrack(entry, is_pinned)
-			end
+			RenderTrackListRow(entry, focused_set, is_pinned)
+		end
 
-			if not is_pinned and not parent_is_collapsed then
-				skip_depth = nil
-				if entry.is_folder and entry.is_collapsed then
-					skip_depth = entry.depth + 1
-				end
+		if not is_pinned and not parent_is_collapsed then
+			skip_depth = nil
+			if entry.is_folder and entry.is_collapsed then
+				skip_depth = entry.depth + 1
 			end
 		end
 	end
-end
 
-local function IsSameAsAllState(track_ref) --? or check if hidden and not a hidden track?
-	local saved = all_snapshot[track_ref]
-	if not saved then
-		return false
-	end
-	local current_tcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP")
-	local current_mcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER")
-	return saved.show_tcp == current_tcp and saved.show_mcp == current_mcp
+	ImGui.EndTable(ctx)
 end
 
 local function LoadAllStateFromProject()
@@ -562,7 +584,7 @@ local function loop()
 		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelectedOverline, SetAlpha(Theme_colors.primary_color, 0))
 
 		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Lighten(Theme_colors.primary_color, 0.2), 0.2))
-		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Darken(Theme_colors.bg2_color, 0.1), 0.1))
+		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Darken(Theme_colors.bg2_color, 0.1), 0.1)) --! redundant??
 		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Darken(mode_color, 0.2), 0.6))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Darken(mode_color, 0.1))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Darken(mode_color, 0.1), 0.67))
@@ -578,8 +600,8 @@ local function loop()
 		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGripActive, SetAlpha(Theme_colors.primary_color, 0.67))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGripHovered, SetAlpha(Theme_colors.primary_color, 0.95))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarBg, SetAlpha(Darken(Theme_colors.bg2_color, 0.15), 0.5))
-		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrab, SetAlpha(Theme_colors.primary_color, 1))
-		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabActive, SetAlpha(Theme_colors.primary_color, 1))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrab, SetAlpha(Theme_colors.primary_color, 0.5))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabActive, SetAlpha(Theme_colors.primary_color, 0.7))
 		ImGui.PushStyleColor(
 			ctx,
 			ImGui.Col_ScrollbarGrabHovered,
@@ -591,6 +613,7 @@ local function loop()
 				LoadAllStateFromProject()
 			end
 
+			------------------------------- TRACK LIST TAB
 			if ImGui.BeginTabItem(ctx, "Track list") then
 				--------------------------- WINDOW SIZING
 				local NUM_BELOW_ELEMENTS = 4
@@ -598,24 +621,23 @@ local function loop()
 				local list_height = -footer_height
 
 				local available_width = ImGui.GetContentRegionAvail(ctx)
-				local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
 
-				----------------------------- LIST BOX
+				----------------------------- LIST BOX / TABLE
 				ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg, SetAlpha(Theme_colors.bg2_color, 1)) -- list box, checkbox bg
 				-- -FLT_MIN = right align
-				if ImGui.BeginListBox(ctx, "##tracks", -FLT_MIN, list_height) then
+				if ImGui.BeginChild(ctx, "##tracklist", -FLT_MIN, list_height, ImGui.ChildFlags_FrameStyle) then
 					GatherAllTrackInfo()
-					RenderTrackList(pinned_tracks, focused_pinned_tracks, true)
+					RenderTrackListTable("##pinnedtracklist", pinned_tracks, focused_pinned_tracks, true) --? or optionally display all pinned, scroll main
 					if next(pinned_tracks) ~= nil then
 						ImGui.Separator(ctx)
 					end
-					RenderTrackList(main_tracks, focused_main_tracks, false)
-
-					ImGui.EndListBox(ctx)
+					RenderTrackListTable("##maintracklist", main_tracks, focused_main_tracks, false)
+					ImGui.EndChild(ctx)
 				end
 
 				--------------------------- MAIN BUTTONS
 				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
+				local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
 				local capture_button_width = 20
 
 				-- ALL BUTTON
@@ -691,6 +713,7 @@ local function loop()
 
 				ImGui.EndTabItem(ctx)
 			end -- tab item
+			------------------------------- OPTIONS TAB
 			if ImGui.BeginTabItem(ctx, "Options") then
 				-- SHOW MCP-only
 				local show_mcp_only_tracks_change, show_mcp_only_tracks_new =
@@ -718,6 +741,13 @@ local function loop()
 					SaveBoolState("only_folder_parents", only_folder_parents)
 				end
 				ImGui.SetItemTooltip(ctx, "Show only folder parents in track list")
+
+				ImGui.Spacing(ctx) -- TODO: how to stretch until bottom?
+
+				if ImGui.Button(ctx, "Adapt to current theme", -FLT_MIN) then
+					CaptureCurrentTheme()
+				end
+
 				ImGui.EndTabItem(ctx)
 			end
 			ImGui.EndTabBar(ctx)
