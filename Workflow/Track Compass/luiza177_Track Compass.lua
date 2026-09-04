@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.1.7
+-- @version 0.2.0
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -29,6 +29,9 @@
 --   - represent track color in list
 -- @changelog
 --   - Saves and loads ALL state with/from project
+--   - Detects project change
+--   - Prompts user to capture ALL state when new project with no saved data is loaded
+--   - CAVEAT: if a project was saved in a focused state, that state does not get updated on load
 -- @provides
 --   [main] .
 
@@ -51,6 +54,7 @@ local main_tracks = {}
 local focused_main_tracks = {}
 local last_alt_click = false
 local last_main_click_ref = nil
+local last_known_project = reaper.EnumProjects(-1)
 
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
@@ -88,7 +92,7 @@ local function GetTrackName(track, i)
 	return name
 end
 
-local function GatherAllTrackInfo() --? add param for getting tcp/mcp if needed?
+local function GatherAllTrackInfo()
 	local depth = 0
 	pinned_tracks = {}
 	main_tracks = {}
@@ -99,7 +103,7 @@ local function GatherAllTrackInfo() --? add param for getting tcp/mcp if needed?
 
 		local name = GetTrackName(track_ref, i)
 		local _, guid = reaper.GetSetMediaTrackInfo_String(track_ref, "GUID", "", false)
-		local number = i + 1 --? or 0 based?
+		local number = i + 1
 		local is_folder = depth_change == 1
 		local color = reaper.GetMediaTrackInfo_Value(track_ref, "I_CUSTOMCOLOR") -- OS dependent color|0x1000000 (i.e. ColorToNative(r,g,b)|0x1000000). If you do not |0x1000000, then it will not be used, but will store the color
 		local is_collapsed = reaper.GetMediaTrackInfo_Value(track_ref, "I_FOLDERCOMPACT") == 2
@@ -113,8 +117,6 @@ local function GatherAllTrackInfo() --? add param for getting tcp/mcp if needed?
 			is_folder = is_folder,
 			is_collapsed = is_collapsed,
 			color = color,
-			-- showing_tcp = showing_tcp
-			-- showing_mcp = showing_mcp
 		}
 
 		local is_pinned = reaper.GetMediaTrackInfo_Value(track_ref, "B_TCPPIN") == 1
@@ -126,6 +128,23 @@ local function GatherAllTrackInfo() --? add param for getting tcp/mcp if needed?
 
 		depth = depth + depth_change
 	end
+end
+
+local function ReadProjStoredState(track)
+	local retval, value = reaper.GetProjExtState(0, ext_name, track.guid)
+	if retval == 1 then
+		local show_tcp_str, show_mcp_str = value:match("([^;]+);([^;]+)")
+		-- reaper.ShowConsoleMsg("\nreading value for " .. track.name .. ", GUID: " .. track.guid .. ", show TCP: " .. show_tcp_str .. ", show MCP: " .. show_mcp_str)
+		all_snapshot[track.track_ref] = {
+			show_tcp = tonumber(show_tcp_str),
+			show_mcp = tonumber(show_mcp_str),
+			guid = track.guid,
+		}
+		-- else
+		-- reaper.ShowConsoleMsg("\nNo value for " .. track.name .. ", GUID: " .. track.guid .. " was found!")
+		--? add to all_snap here??
+	end
+	return retval
 end
 
 ---------------------------------------------------------------------------
@@ -169,6 +188,7 @@ local function ToImGuiColor(color)
 	return (converted << 8 | 0xFF)
 end
 
+--? Add button for theme recapture instead of polling for theme change?
 local function CaptureCurrentTheme()
 	Theme_colors = {}
 	local bg_color = reaper.GetThemeColor("col_main_bg2", 0) -- or col_main_bg, col_main_bg2, windowtab_bg
@@ -177,6 +197,7 @@ local function CaptureCurrentTheme()
 	local secondary_color = reaper.GetThemeColor("playcursor_color", 0)
 	-- local text_color = reaper.GetThemeColor("col_tcp_text", 0)
 	local automation_recording = reaper.GetThemeColor("col_fadearm", 0)
+	-- FIXME: if it's the same as the bg color, try the secondary
 
 	Theme_colors = {
 		bg_color = ToImGuiColor(bg_color),
@@ -199,21 +220,26 @@ end
 
 local function SaveAllState()
 	reaper.SetProjExtState(0, ext_name, "", "") -- clear existing data
-	reaper.ShowConsoleMsg("\n\nclearing existing data...")
+	-- reaper.ShowConsoleMsg("\n\nclearing existing data...")
 	for track_ref, entry in pairs(all_snapshot) do
 		local value = entry.show_tcp .. ";" .. entry.show_mcp
 		reaper.SetProjExtState(0, ext_name, entry.guid, value)
-		reaper.ShowConsoleMsg("\nsaving data for GUID: " .. entry.guid .. ", value: " .. value)
+		-- reaper.ShowConsoleMsg("\nsaving data for GUID: " .. entry.guid .. ", value: " .. value)
 	end
 end
 
-local function CaptureAllState() --? include overwrite param?
+local function CaptureAllState(overwrite)
+	if overwrite then
+		all_snapshot = {}
+	end
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track_ref = reaper.GetTrack(0, i)
-		local show_tcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP")
-		local show_mcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER")
-		local _, guid = reaper.GetSetMediaTrackInfo_String(track_ref, "GUID", "", false)
-		all_snapshot[track_ref] = { show_tcp = show_tcp, show_mcp = show_mcp, guid = guid } --? or use guid as key?
+		if all_snapshot[track_ref] == nil or overwrite then
+			local show_tcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP")
+			local show_mcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER")
+			local _, guid = reaper.GetSetMediaTrackInfo_String(track_ref, "GUID", "", false)
+			all_snapshot[track_ref] = { show_tcp = show_tcp, show_mcp = show_mcp, guid = guid }
+		end
 	end
 	SaveAllState()
 end
@@ -353,16 +379,16 @@ local function HandleClickTrack(track, is_pinned)
 
 	-- SELECTION BEHAVIOR / what to select
 	if is_pinned then -- if a PINNED track was clicked, always multi-select
-		-- FIXME: when in ALL state, pinned tracks cannot be focused
+		-- FIXME: when in ALL state and keep_pinned, pinned tracks cannot be focused ==> add from_all_state flag?
 		if focused_pinned_tracks[track.track_ref] then -- and is already selected then
 			focused_pinned_tracks[track.track_ref] = nil -- unselect it
 		else
 			focused_pinned_tracks[track.track_ref] = true -- select it
-			-- if track.is_folder then GetFolderChildren(track, focused_pinned_tracks) end -- and select children, if folder
 		end
 		-- if no pinned tracks remain focused, disable keep_pinned
 		if next(focused_pinned_tracks) == nil then
 			keep_pinned = false
+			SaveBoolState("keep_pinned", keep_pinned)
 		end
 		-- keep_pinned = next(focused_pinned_tracks) ~= nil
 	else -- clicked a MAIN track
@@ -396,7 +422,7 @@ local function HandleClickTrack(track, is_pinned)
 	end
 
 	-- WHAT TO DO ABOUT IT
-	if next(focused_main_tracks) == nil then -- FIXME: and not keep_pinned??? (for pinned tracks not selectable)
+	if next(focused_main_tracks) == nil and (keep_pinned or next(focused_pinned_tracks) == nil) then
 		RestoreAllState()
 	else
 		FocusSelected(should_solo)
@@ -417,7 +443,7 @@ local function PassesDisplayFilters(track)
 	return true
 end
 
--- FIXME: EDGE CAGE when folder parent is pinned, but children are not (REAPER behavior)
+-- Q: EDGE CAGE when folder parent is pinned, but children are not (REAPER behavior)
 local function RenderTrackList(set, focused_set, is_pinned)
 	local skip_depth = nil
 
@@ -444,6 +470,64 @@ local function RenderTrackList(set, focused_set, is_pinned)
 	end
 end
 
+local function IsSameAsAllState(track_ref) --? or check if hidden and not a hidden track?
+	local saved = all_snapshot[track_ref]
+	if not saved then
+		return false
+	end
+	local current_tcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP")
+	local current_mcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER")
+	return saved.show_tcp == current_tcp and saved.show_mcp == current_mcp
+end
+
+local function LoadAllStateFromProject()
+	all_snapshot = {}
+	focused_main_tracks = {}
+	focused_pinned_tracks = {}
+
+	GatherAllTrackInfo()
+
+	local loaded_data_entries = 0
+	for _, entry in ipairs(pinned_tracks) do
+		loaded_data_entries = loaded_data_entries + ReadProjStoredState(entry)
+
+		--    if IsSameAsAllState(entry.track_ref) then end
+	end
+	for _, entry in ipairs(main_tracks) do
+		loaded_data_entries = loaded_data_entries + ReadProjStoredState(entry)
+	end
+	-- TODO: depending on read, derive state? ==> if not the same as ALL, then focus on discrepancies?
+	-- if it's all the same, then no focused; if some are the same and others hidden but not the saved state, then add to focus and turn focus_view on
+
+	local track_count = reaper.CountTracks(0)
+
+	if loaded_data_entries == track_count then
+		return
+	end -- empty project OR all tracks loaded
+
+	if loaded_data_entries == 0 then -- new project --> modal
+		local answer = reaper.ShowMessageBox(
+			"Capture ALL state as project currently is?",
+			"Track Compass: No stored track data",
+			4
+		)
+		if answer == 6 then
+			CaptureAllState(true)
+		end
+	else -- partial data
+		CaptureAllState(false)
+	end
+end
+
+local function CheckProjectChanged()
+	local current_project = reaper.EnumProjects(-1)
+	local project_changed = current_project ~= last_known_project
+	if project_changed then
+		last_known_project = current_project
+	end
+	return project_changed
+end
+
 --==============================================================
 local function loop()
 	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 2)
@@ -452,13 +536,6 @@ local function loop()
 	ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, Theme_colors.bg_color)
 	ImGui.PushStyleColor(ctx, ImGui.Col_TitleBg, Theme_colors.bg_color)
 	ImGui.PushStyleColor(ctx, ImGui.Col_TitleBgActive, Theme_colors.bg2_color)
-	ImGui.PushStyleColor(ctx, ImGui.Col_Tab, SetAlpha(Theme_colors.bg2_color, 0.45))
-	ImGui.PushStyleColor(ctx, ImGui.Col_TabHovered, SetAlpha(Lighten(Theme_colors.bg2_color, 0.15), 0.8))
-	ImGui.PushStyleColor(ctx, ImGui.Col_TabSelected, Theme_colors.bg2_color)
-	ImGui.PushStyleColor(ctx, ImGui.Col_TabSelectedOverline, Theme_colors.primary_color)
-	ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmed, SetAlpha(Darken(Theme_colors.bg2_color, 0.2), 0.98))
-	ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelected, SetAlpha(Theme_colors.bg2_color, 0.3))
-	ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelectedOverline, SetAlpha(Theme_colors.primary_color, 0))
 	ImGui.PushStyleColor(ctx, ImGui.Col_DockingPreview, SetAlpha(Theme_colors.primary_color, 0.7))
 	ImGui.PushStyleColor(ctx, ImGui.Col_DockingEmptyBg, Theme_colors.bg2_color)
 
@@ -466,7 +543,7 @@ local function loop()
 	local visible, open = ImGui.Begin(ctx, "Track Compass", true, window_flags)
 
 	ImGui.PopStyleVar(ctx, 2)
-	ImGui.PopStyleColor(ctx, 12)
+	ImGui.PopStyleColor(ctx, 5)
 
 	if visible then
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, 2)
@@ -475,6 +552,14 @@ local function loop()
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize, 1)
 
 		local mode_color = focus_view and Lighten(Theme_colors.primary_color, 0.1) or Theme_colors.primary_color
+
+		ImGui.PushStyleColor(ctx, ImGui.Col_TabHovered, SetAlpha(Lighten(Theme_colors.bg2_color, 0.15), 0.8))
+		ImGui.PushStyleColor(ctx, ImGui.Col_TabSelected, mode_color)
+		ImGui.PushStyleColor(ctx, ImGui.Col_TabSelectedOverline, Theme_colors.primary_color)
+		ImGui.PushStyleColor(ctx, ImGui.Col_Tab, SetAlpha(Theme_colors.bg2_color, 0.45))
+		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmed, SetAlpha(Darken(Theme_colors.bg2_color, 0.2), 0.98))
+		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelected, SetAlpha(Theme_colors.bg2_color, 0.3))
+		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelectedOverline, SetAlpha(Theme_colors.primary_color, 0))
 
 		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Lighten(Theme_colors.primary_color, 0.2), 0.2))
 		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Darken(Theme_colors.bg2_color, 0.1), 0.1))
@@ -501,202 +586,163 @@ local function loop()
 			SetAlpha(Lighten(Theme_colors.primary_color, 0.15), 1)
 		)
 
-		--------------------------- WINDOW SIZING
-		local NUM_CHECKBOXES = 6
-		local footer_height = ImGui.GetFrameHeightWithSpacing(ctx) * NUM_CHECKBOXES
-		local list_height = -footer_height
-
-		local available_width = ImGui.GetContentRegionAvail(ctx)
-		local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
-
-		--------------------------- TOP BUTTONS
-		ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
-		local capture_button_width = 20
-
-		-- ALL BUTTON
-		if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
-			RestoreAllState()
-		end
-		ImGui.SetItemTooltip(
-			ctx,
-			"Show all desired tracks.\nThis keeps tracks that are shown in the TCP but not MCP (eg. MIDI only tracks) intact."
-		)
-
-		ImGui.SameLine(ctx)
-
-		-- CAPTURE BUTTON
-		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.automation_recording, 0.5))
-		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Theme_colors.automation_recording)
-		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.automation_recording, 0.67))
-
-		if ImGui.Button(ctx, "*", capture_button_width, 0) then
-			CaptureAllState()
-		end
-		ImGui.SetItemTooltip(
-			ctx,
-			"Capture default project state showing all desired tracks.\nIf you have tracks that are shown in the TCP but not MCP (eg. MIDI only tracks), this will keep that intact."
-		)
-
-		ImGui.PopStyleColor(ctx, 3)
-		ImGui.PopStyleVar(ctx, 1)
-
-		----------------------------- LIST BOX
-		ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg, SetAlpha(Theme_colors.bg2_color, 1)) -- list box, checkbox bg
-		-- -FLT_MIN = right align
-		if ImGui.BeginListBox(ctx, "##tracks", -FLT_MIN, list_height) then
-			GatherAllTrackInfo()
-			RenderTrackList(pinned_tracks, focused_pinned_tracks, true)
-			ImGui.Separator(ctx)
-			RenderTrackList(main_tracks, focused_main_tracks, false)
-
-			ImGui.EndListBox(ctx)
-		end
-
-		------------------------------ OPTIONS CHECKBOXES
-		-- FOCUS VIEW
-		local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
-		if focus_changed then
-			focus_view = focus_new
-			SaveBoolState("focus_view", focus_view)
-			if not focus_view then
-				RestoreAllState()
+		if ImGui.BeginTabBar(ctx, "##tabs") then
+			if CheckProjectChanged() then
+				LoadAllStateFromProject()
 			end
-		end
-		ImGui.SetItemTooltip(ctx, "Show only selected tracks in Arrange view and Mixer")
 
-		-- SOLO SELECTED
-		local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
-		if solo_selected_change then
-			solo_selected = solo_selected_new
-			if not solo_selected_new then
-				UnsoloAll()
+			if ImGui.BeginTabItem(ctx, "Track list") then
+				--------------------------- WINDOW SIZING
+				local NUM_BELOW_ELEMENTS = 4
+				local footer_height = ImGui.GetFrameHeightWithSpacing(ctx) * NUM_BELOW_ELEMENTS
+				local list_height = -footer_height
+
+				local available_width = ImGui.GetContentRegionAvail(ctx)
+				local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
+
+				----------------------------- LIST BOX
+				ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg, SetAlpha(Theme_colors.bg2_color, 1)) -- list box, checkbox bg
+				-- -FLT_MIN = right align
+				if ImGui.BeginListBox(ctx, "##tracks", -FLT_MIN, list_height) then
+					GatherAllTrackInfo()
+					RenderTrackList(pinned_tracks, focused_pinned_tracks, true)
+					if next(pinned_tracks) ~= nil then
+						ImGui.Separator(ctx)
+					end
+					RenderTrackList(main_tracks, focused_main_tracks, false)
+
+					ImGui.EndListBox(ctx)
+				end
+
+				--------------------------- MAIN BUTTONS
+				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
+				local capture_button_width = 20
+
+				-- ALL BUTTON
+				if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
+					RestoreAllState()
+				end
+				ImGui.SetItemTooltip(
+					ctx,
+					"Show all desired tracks.\nThis keeps tracks that are shown in the TCP but not MCP (eg. MIDI only tracks) intact."
+				)
+
+				ImGui.SameLine(ctx)
+
+				-- CAPTURE BUTTON
+				ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.automation_recording, 0.5))
+				ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Theme_colors.automation_recording)
+				ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.automation_recording, 0.67))
+
+				if ImGui.Button(ctx, "*", capture_button_width, 0) then
+					CaptureAllState(true)
+				end
+				ImGui.SetItemTooltip(
+					ctx,
+					"Capture default project state showing all desired tracks.\nIf you have tracks that are shown in the TCP but not MCP (eg. MIDI only tracks), this will keep that intact."
+				)
+
+				ImGui.PopStyleColor(ctx, 3)
+				ImGui.PopStyleVar(ctx, 1)
+
+				------------------------------ OPTIONS CHECKBOXES
+				-- FOCUS VIEW
+				local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
+				if focus_changed then
+					focus_view = focus_new
+					SaveBoolState("focus_view", focus_view)
+					if not focus_view then
+						RestoreAllState()
+					end
+				end
+				ImGui.SetItemTooltip(ctx, "Show only selected tracks in Arrange view and Mixer")
+
+				-- SOLO SELECTED
+				local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
+				if solo_selected_change then
+					solo_selected = solo_selected_new
+					if not solo_selected_new then
+						UnsoloAll()
+					end
+				end
+				ImGui.SetItemTooltip(ctx, "Exclusively solo selected tracks")
+
+				-- KEEP PINNED
+				local keep_pinned_change, keep_pinned_new = ImGui.Checkbox(ctx, "Keep pinned tracks", keep_pinned)
+				if keep_pinned_change then
+					keep_pinned = keep_pinned_new
+					SaveBoolState("keep_pinned", keep_pinned)
+					if
+						focus_view
+						and keep_pinned
+						and next(focused_main_tracks) ~= nil
+						and next(focused_pinned_tracks) == nil
+					then
+						AddPinnedTracks()
+						FocusSelected(solo_selected)
+					elseif focus_view and not keep_pinned and next(focused_pinned_tracks) ~= nil then
+						focused_pinned_tracks = {}
+						FocusSelected(solo_selected)
+					end
+				end
+				ImGui.SetItemTooltip(ctx, "Keep pinned tracks while focusing")
+
+				ImGui.PopStyleColor(ctx, 1)
+
+				ImGui.EndTabItem(ctx)
+			end -- tab item
+			if ImGui.BeginTabItem(ctx, "Options") then
+				-- SHOW MCP-only
+				local show_mcp_only_tracks_change, show_mcp_only_tracks_new =
+					ImGui.Checkbox(ctx, "Show MCP-only", show_mcp_only_tracks)
+				if show_mcp_only_tracks_change then
+					show_mcp_only_tracks = show_mcp_only_tracks_new
+					SaveBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
+				end
+				ImGui.SetItemTooltip(ctx, "Show tracks with only the MCP (eg. FX return tracks) in the track list")
+
+				-- SHOW HIDDEN
+				local show_hidden_tracks_change, show_hidden_tracks_new =
+					ImGui.Checkbox(ctx, "Show hidden", show_hidden_tracks)
+				if show_hidden_tracks_change then
+					show_hidden_tracks = show_hidden_tracks_new
+					SaveBoolState("show_hidden_tracks", show_hidden_tracks)
+				end
+				ImGui.SetItemTooltip(ctx, "Show hidden tracks in track list")
+
+				-- ONLY SHOW FOLDERS
+				local only_folder_parents_change, only_folders_parents_new =
+					ImGui.Checkbox(ctx, "Only folders", only_folder_parents)
+				if only_folder_parents_change then
+					only_folder_parents = only_folders_parents_new
+					SaveBoolState("only_folder_parents", only_folder_parents)
+				end
+				ImGui.SetItemTooltip(ctx, "Show only folder parents in track list")
+				ImGui.EndTabItem(ctx)
 			end
-		end
-		ImGui.SetItemTooltip(ctx, "Exclusively solo selected tracks")
-
-		-- KEEP PINNED
-		local keep_pinned_change, keep_pinned_new = ImGui.Checkbox(ctx, "Keep pinned tracks", keep_pinned)
-		if keep_pinned_change then
-			keep_pinned = keep_pinned_new
-			SaveBoolState("keep_pinned", keep_pinned)
-			if
-				focus_view
-				and keep_pinned
-				and next(focused_main_tracks) ~= nil
-				and next(focused_pinned_tracks) == nil
-			then
-				AddPinnedTracks()
-				FocusSelected(solo_selected)
-			elseif focus_view and not keep_pinned and next(focused_pinned_tracks) ~= nil then
-				focused_pinned_tracks = {}
-				FocusSelected(solo_selected)
-			end
-		end
-		ImGui.SetItemTooltip(ctx, "Keep pinned tracks while focusing")
-
-		-- SHOW MCP-only
-		local show_mcp_only_tracks_change, show_mcp_only_tracks_new =
-			ImGui.Checkbox(ctx, "Show MCP-only", show_mcp_only_tracks)
-		if show_mcp_only_tracks_change then
-			show_mcp_only_tracks = show_mcp_only_tracks_new
-			SaveBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
-		end
-		ImGui.SetItemTooltip(ctx, "Show tracks with only the MCP (eg. FX return tracks) in the track list")
-
-		-- SHOW HIDDEN
-		local show_hidden_tracks_change, show_hidden_tracks_new = ImGui.Checkbox(ctx, "Show hidden", show_hidden_tracks)
-		if show_hidden_tracks_change then
-			show_hidden_tracks = show_hidden_tracks_new
-			SaveBoolState("show_hidden_tracks", show_hidden_tracks)
-		end
-		ImGui.SetItemTooltip(ctx, "Show hidden tracks in track list")
-
-		-- ONLY SHOW FOLDERS
-		local only_folder_parents_change, only_folders_parents_new =
-			ImGui.Checkbox(ctx, "Only folders", only_folder_parents)
-		if only_folder_parents_change then
-			only_folder_parents = only_folders_parents_new
-			SaveBoolState("only_folder_parents", only_folder_parents)
-		end
-		ImGui.SetItemTooltip(ctx, "Show only folder parents in track list")
-
+			ImGui.EndTabBar(ctx)
+		end -- tab bar
 		ImGui.PopStyleVar(ctx, 1) -- frame border
 		---------------------
 
 		ImGui.PopStyleVar(ctx, 3)
-		ImGui.PopStyleColor(ctx, 21)
-		ImGui.End(ctx)
-	end
+		ImGui.PopStyleColor(ctx, 27)
 
+		ImGui.End(ctx)
+	end -- if visible
 	if open then
 		reaper.defer(loop)
 	end
 end
 
-local function ReadProjStoredState(track)
-	local retval, value = reaper.GetProjExtState(0, ext_name, track.guid)
-	if retval == 1 then
-		local show_tcp_str, show_mcp_str = value:match("([^;]+);([^;]+)")
-		reaper.ShowConsoleMsg(
-			"\nreading value for "
-				.. track.name
-				.. ", GUID: "
-				.. track.guid
-				.. ", show TCP: "
-				.. show_tcp_str
-				.. ", show MCP: "
-				.. show_mcp_str
-		)
-		all_snapshot[track.track_ref] = {
-			show_tcp = tonumber(show_tcp_str),
-			show_mcp = tonumber(show_mcp_str),
-			guid = track.guid,
-		}
-	else
-		reaper.ShowConsoleMsg("\nNo value for " .. track.name .. ", GUID: " .. track.guid .. " was found!")
-
-		-- all_snapshot[track.track_ref] = {
-		--     show_tcp = 1,
-		--     show_mcp = 1,
-		--     guid = track.guid
-		-- }
-		-- SaveAllState()
-	end
-	return retval
-end
-
-local function LoadAllState()
-	GatherAllTrackInfo()
-	local loaded_data_entries = 0
-	for _, entry in ipairs(pinned_tracks) do
-		loaded_data_entries = loaded_data_entries + ReadProjStoredState(entry)
-		--? count and store discrepancies P
-	end
-	for _, entry in ipairs(main_tracks) do
-		loaded_data_entries = loaded_data_entries + ReadProjStoredState(entry)
-		--? count and store discrepancies M
-	end
-	-- TODO?: if no data for one or more of the tracks, save after loading
-	-- TODO?: depending on read, derive state? ==> if not the save as ALL, then focus on discrepancies?
-	return loaded_data_entries
-end
-
 local function Init()
-	CaptureCurrentTheme() -- TODO: on theme change
+	CaptureCurrentTheme() -- TODO: on theme change --? capture theme button in options?
 	focus_view = LoadBoolState("focus_view", focus_view)
 	keep_pinned = LoadBoolState("keep_pinned", keep_pinned)
 	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
 	show_hidden_tracks = LoadBoolState("show_hidden_tracks", show_hidden_tracks)
 	only_folder_parents = LoadBoolState("only_folder_parents", only_folder_parents)
-	local loaded_data_entries = LoadAllState()
-	if loaded_data_entries < reaper.CountTracks(0) then -- TODO: do something about partial data
-		reaper.ShowMessageBox(
-			"Capturing All state as project currently is",
-			"Track Compass: No or incomplete track data",
-			0
-		)
-		CaptureAllState() -- TODO: on project change? Load button? when no track matches?
-	end
+	LoadAllStateFromProject()
 end
 
 Init()
