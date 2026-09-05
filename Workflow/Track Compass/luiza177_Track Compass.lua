@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.2.0
+-- @version 0.2.1
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -27,12 +27,7 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Saves and loads ALL state with/from project
---   - Detects project change
---   - Prompts user to capture ALL state when new project with no saved data is loaded
---   - CAVEAT: if a project was saved in a focused state, that state does not get updated on load
---   - Better track list coloring and spacing
---   - Solo state reflected in track number
+--   - Fixed ImGui invalid context error on first load
 -- @provides
 --   [main] .
 
@@ -56,6 +51,7 @@ local focused_main_tracks = {}
 local last_alt_click = false
 local last_main_click_ref = nil
 local last_known_project = reaper.EnumProjects(-1)
+local pending_loaded_entries = nil
 
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
@@ -245,7 +241,7 @@ local function CaptureAllState(clear)
 	SaveAllState()
 end
 
-local function RestoreAllState()
+local function RestoreAllState() -- TODO: if not keep_pinned
 	local save_after = false
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track_ref = reaper.GetTrack(0, i)
@@ -502,6 +498,30 @@ local function RenderTrackListTable(table_id, set, focused_set, is_pinned)
 	ImGui.EndTable(ctx)
 end
 
+local function ResolveMissingAllState()
+	local track_count = reaper.CountTracks(0)
+
+	if pending_loaded_entries == track_count then
+		return
+	end -- empty project OR all tracks loaded
+
+	if pending_loaded_entries == 0 then -- new project --> modal
+		local answer = reaper.ShowMessageBox(
+			"Capture ALL state as project currently is?",
+			"Track Compass: No stored track data",
+			4
+		)
+		if answer == 6 then
+			CaptureAllState(true)
+		end
+	else -- partial data
+		CaptureAllState(false)
+	end
+	-- TODO: depending on read, derive state? ==> if not the same as ALL, then focus on discrepancies?
+	-- if it's all the same, then no focused; if some are the same and others hidden but not the saved state, then add to focus and turn focus_view on
+	pending_loaded_entries = nil
+end
+
 local function LoadAllStateFromProject()
 	all_snapshot = {}
 	focused_main_tracks = {}
@@ -518,27 +538,7 @@ local function LoadAllStateFromProject()
 	for _, entry in ipairs(main_tracks) do
 		loaded_data_entries = loaded_data_entries + ReadProjStoredState(entry)
 	end
-	-- TODO: depending on read, derive state? ==> if not the same as ALL, then focus on discrepancies?
-	-- if it's all the same, then no focused; if some are the same and others hidden but not the saved state, then add to focus and turn focus_view on
-
-	local track_count = reaper.CountTracks(0)
-
-	if loaded_data_entries == track_count then
-		return
-	end -- empty project OR all tracks loaded
-
-	if loaded_data_entries == 0 then -- new project --> modal
-		local answer = reaper.ShowMessageBox(
-			"Capture ALL state as project currently is?",
-			"Track Compass: No stored track data",
-			4
-		)
-		if answer == 6 then
-			CaptureAllState(true)
-		end
-	else -- partial data
-		CaptureAllState(false)
-	end
+	return loaded_data_entries
 end
 
 local function CheckProjectChanged()
@@ -568,6 +568,10 @@ local function loop()
 	ImGui.PopStyleColor(ctx, 5)
 
 	if visible then
+		if pending_loaded_entries ~= nil then
+			ResolveMissingAllState()
+		end
+
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, 2)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 4, 2)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarRounding, 1)
@@ -584,7 +588,7 @@ local function loop()
 		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelectedOverline, SetAlpha(Theme_colors.primary_color, 0))
 
 		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Lighten(Theme_colors.primary_color, 0.2), 0.2))
-		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Darken(Theme_colors.bg2_color, 0.1), 0.1)) --! redundant??
+		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Darken(Theme_colors.bg2_color, 0.1), 0.1)) --FIXME: redundant??
 		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Darken(mode_color, 0.2), 0.6))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Darken(mode_color, 0.1))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Darken(mode_color, 0.1), 0.67))
@@ -610,7 +614,7 @@ local function loop()
 
 		if ImGui.BeginTabBar(ctx, "##tabs") then
 			if CheckProjectChanged() then
-				LoadAllStateFromProject()
+				pending_loaded_entries = LoadAllStateFromProject()
 			end
 
 			------------------------------- TRACK LIST TAB
@@ -654,7 +658,7 @@ local function loop()
 				-- CAPTURE BUTTON
 				ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.automation_recording, 0.5))
 				ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Theme_colors.automation_recording)
-				ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.automation_recording, 0.67))
+				ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.automation_recording, 0.67)) -- FIXME: not always red
 
 				if ImGui.Button(ctx, "*", capture_button_width, 0) then
 					CaptureAllState(true)
@@ -705,6 +709,7 @@ local function loop()
 					elseif focus_view and not keep_pinned and next(focused_pinned_tracks) ~= nil then
 						focused_pinned_tracks = {}
 						FocusSelected(solo_selected)
+						-- elseif not focus_view and not keep_pinned then -- TODO: not keep pinned workflow
 					end
 				end
 				ImGui.SetItemTooltip(ctx, "Keep pinned tracks while focusing")
@@ -766,13 +771,13 @@ local function loop()
 end
 
 local function Init()
-	CaptureCurrentTheme() -- TODO: on theme change --? capture theme button in options?
+	CaptureCurrentTheme()
 	focus_view = LoadBoolState("focus_view", focus_view)
 	keep_pinned = LoadBoolState("keep_pinned", keep_pinned)
 	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
 	show_hidden_tracks = LoadBoolState("show_hidden_tracks", show_hidden_tracks)
 	only_folder_parents = LoadBoolState("only_folder_parents", only_folder_parents)
-	LoadAllStateFromProject()
+	pending_loaded_entries = LoadAllStateFromProject()
 end
 
 Init()
