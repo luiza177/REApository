@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.2.1
+-- @version 0.3.0
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -27,7 +27,11 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Fixed ImGui invalid context error on first load
+--   - Reworked 'Keep pinned tracks' into 'Show pinned tracks': it now acts more of a show/hide toggle, while still only showing the ones you actually want
+--   - Added button to adapt to theme colors
+--   - hard-coded red color for solo indicator and capture button
+--   - Removed modal at project load without any saved data: a new project will be assumed to show everything, until ALL state is captured.
+--   - When project has no saved ALL state data, capture button will be red, otherwise grey
 -- @provides
 --   [main] .
 
@@ -52,12 +56,13 @@ local last_alt_click = false
 local last_main_click_ref = nil
 local last_known_project = reaper.EnumProjects(-1)
 local pending_loaded_entries = nil
+local no_saved_data = false
 
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
 local focus_view = true
 local solo_selected = false
-local keep_pinned = true
+local show_pinned = true
 local show_mcp_only_tracks = true
 local show_hidden_tracks = false
 local only_folder_parents = false
@@ -104,6 +109,8 @@ local function GatherAllTrackInfo()
 		local is_folder = depth_change == 1
 		local color = reaper.GetMediaTrackInfo_Value(track_ref, "I_CUSTOMCOLOR") -- OS dependent color|0x1000000 (i.e. ColorToNative(r,g,b)|0x1000000). If you do not |0x1000000, then it will not be used, but will store the color
 		local is_collapsed = reaper.GetMediaTrackInfo_Value(track_ref, "I_FOLDERCOMPACT") == 2
+		local show_tcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP")
+		local show_mcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER")
 
 		local track_info = {
 			track_ref = track_ref,
@@ -114,6 +121,8 @@ local function GatherAllTrackInfo()
 			is_folder = is_folder,
 			is_collapsed = is_collapsed,
 			color = color,
+			show_tcp = show_tcp,
+			show_mcp = show_mcp,
 		}
 
 		local is_pinned = reaper.GetMediaTrackInfo_Value(track_ref, "B_TCPPIN") == 1
@@ -144,6 +153,72 @@ local function ReadProjStoredState(track)
 	return retval
 end
 
+local function NoFocusedPinnedTracks()
+	return next(focused_pinned_tracks) == nil
+end
+
+local function NoFocusedMainTracks()
+	return next(focused_main_tracks) == nil
+end
+
+local function IsInAllState()
+	return NoFocusedPinnedTracks() and NoFocusedMainTracks()
+end
+
+local function IsVisible(track)
+	local tcp = reaper.GetMediaTrackInfo_Value(track.track_ref, "B_SHOWINTCP")
+	local mcp = reaper.GetMediaTrackInfo_Value(track.track_ref, "B_SHOWINMIXER")
+	return tcp == 1 or mcp == 1
+end
+
+local function IsTCPOnly(track_ref)
+	if not all_snapshot[track_ref] then
+		return false
+	end
+	return all_snapshot[track_ref].show_mcp == 0 and all_snapshot[track_ref].show_tcp == 1
+end
+
+local function IsMCPOnly(track_ref)
+	if not all_snapshot[track_ref] then
+		return false
+	end
+	return all_snapshot[track_ref].show_mcp == 1 and all_snapshot[track_ref].show_tcp == 0
+end
+
+local function IsArchived(track_ref)
+	if not all_snapshot[track_ref] then
+		return false
+	end
+	return all_snapshot[track_ref].show_mcp == 0 and all_snapshot[track_ref].show_tcp == 0
+end
+
+local function SetTCPOnly(track_ref)
+	all_snapshot[track_ref].show_tcp = 1
+	all_snapshot[track_ref].show_mcp = 0
+end
+
+local function SetMCPOnly(track_ref)
+	all_snapshot[track_ref].show_tcp = 0
+	all_snapshot[track_ref].show_mcp = 1
+end
+
+local function SetArchived(track_ref)
+	all_snapshot[track_ref].show_tcp = 0
+	all_snapshot[track_ref].show_mcp = 0
+end
+
+local function SetNormal(track_ref)
+	all_snapshot[track_ref].show_tcp = 1
+	all_snapshot[track_ref].show_mcp = 1
+end
+
+local function CountKeys(t)
+	local n = 0
+	for _ in pairs(t) do
+		n = n + 1
+	end
+	return n
+end
 ---------------------------------------------------------------------------
 -- COLOR AND THEME METHODS
 local function SetAlpha(color, alpha)
@@ -185,16 +260,15 @@ local function ToImGuiColor(color)
 	return (converted << 8 | 0xFF)
 end
 
---? Add button for theme recapture instead of polling for theme change?
 local function CaptureCurrentTheme()
 	Theme_colors = {}
 	local bg_color = reaper.GetThemeColor("col_main_bg2", 0) -- or col_main_bg, col_main_bg2, windowtab_bg
 	local bg2_color = reaper.GetThemeColor("col_tracklistbg", 0) -- or genlist_bg, col_tracklistbg
 	local primary_color = reaper.GetThemeColor("genlist_selbg", 0) -- or col_toolbar_text_on, genlist_selbg, col_cursor
 	local secondary_color = reaper.GetThemeColor("playcursor_color", 0)
-	-- local text_color = reaper.GetThemeColor("col_tcp_text", 0)
-	local automation_recording = reaper.GetThemeColor("col_fadearm", 0)
-	-- FIXME: if it's the same as the bg color, try the secondary
+	-- local text_color = reaper.GetThemeColor("col_tcp_text", 0) -- TODO: find better text color
+	-- local automation_recording = reaper.GetThemeColor("col_fadearm", 0)
+	local red = 0xFD4F4FFF -- TODO: find a way to derive red from theme
 
 	Theme_colors = {
 		bg_color = ToImGuiColor(bg_color),
@@ -202,7 +276,8 @@ local function CaptureCurrentTheme()
 		primary_color = ToImGuiColor(primary_color),
 		secondary_color = ToImGuiColor(secondary_color),
 		-- text_color = ToImGuiColor(text_color),
-		automation_recording = ToImGuiColor(automation_recording),
+		-- automation_recording = ToImGuiColor(automation_recording),
+		red = red,
 	}
 end
 ---------------------------------------------------------------------------
@@ -241,20 +316,37 @@ local function CaptureAllState(clear)
 	SaveAllState()
 end
 
-local function RestoreAllState() -- TODO: if not keep_pinned
-	local save_after = false
-	for i = 0, reaper.CountTracks(0) - 1 do
-		local track_ref = reaper.GetTrack(0, i)
-		local saved_track_state = all_snapshot[track_ref]
-		if saved_track_state then
-			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", all_snapshot[track_ref].show_tcp)
-			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", all_snapshot[track_ref].show_mcp)
-		else
+local function ShowHideTrack(track_ref, show)
+	local saved = all_snapshot[track_ref]
+	local has_data = saved ~= nil
+	if show then
+		if saved then
+			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", saved.show_tcp)
+			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", saved.show_mcp)
+		else --NOTE: fallback for no snapshot data
 			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", 1)
 			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", 1)
 			local _, guid = reaper.GetSetMediaTrackInfo_String(track_ref, "GUID", "", false)
 			all_snapshot[track_ref] = { show_tcp = 1, show_mcp = 1, guid = guid }
-			save_after = true
+		end
+	else -- hide
+		reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", 0)
+		reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", 0)
+	end
+	return has_data
+end
+
+local function RestoreAllState()
+	local save_after = false
+	for i = 0, reaper.CountTracks(0) - 1 do
+		local track_ref = reaper.GetTrack(0, i)
+		local is_pinned = reaper.GetMediaTrackInfo_Value(track_ref, "B_TCPPIN") == 1
+		if not show_pinned or not is_pinned then
+			-- NOTE: pinned tracks are left untouched (not hidden) when show_pinned is off. Maybe revisit later
+			local loaded = ShowHideTrack(track_ref, true)
+			if not loaded then
+				save_after = true
+			end
 		end
 	end
 	if save_after then
@@ -264,20 +356,6 @@ local function RestoreAllState() -- TODO: if not keep_pinned
 	focused_main_tracks = {}
 	focused_pinned_tracks = {}
 	UnsoloAll()
-end
-
-local function IsMCPOnly(track_ref)
-	if not all_snapshot[track_ref] then
-		return false
-	end
-	return all_snapshot[track_ref].show_mcp == 1 and all_snapshot[track_ref].show_tcp == 0
-end
-
-local function IsHidden(track_ref)
-	if not all_snapshot[track_ref] then
-		return false
-	end
-	return all_snapshot[track_ref].show_mcp == 0 and all_snapshot[track_ref].show_tcp == 0
 end
 
 -- MAIN LIST
@@ -302,20 +380,12 @@ local function FocusSelected(should_solo)
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track_ref = reaper.GetTrack(0, i)
 		if focused_pinned_tracks[track_ref] == true or focused_main_tracks[track_ref] == true then
-			local saved_track_state = all_snapshot[track_ref]
-			if saved_track_state then
-				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", all_snapshot[track_ref].show_tcp)
-				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", all_snapshot[track_ref].show_mcp)
-			else
-				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", 1)
-				reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", 1)
-			end
+			ShowHideTrack(track_ref, true)
 			if should_solo then
 				reaper.SetMediaTrackInfo_Value(track_ref, "I_SOLO", 1)
 			end
 		else
-			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP", 0)
-			reaper.SetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER", 0)
+			ShowHideTrack(track_ref, false)
 			if should_solo then
 				reaper.SetMediaTrackInfo_Value(track_ref, "I_SOLO", 0)
 			end
@@ -324,14 +394,40 @@ local function FocusSelected(should_solo)
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
 end
 
-local function GetFolderChildren(track, set)
+local function PassesSelectFilters(track_ref)
+	if not show_mcp_only_tracks and IsMCPOnly(track_ref) then
+		return false
+	end
+	if not show_hidden_tracks and IsArchived(track_ref) then
+		return false
+	end
+	return true
+end
+
+local function PassesDisplayFilters(track)
+	if not PassesSelectFilters(track.track_ref) then
+		return false
+	end
+	if only_folder_parents and not track.is_folder then
+		return false
+	end
+	return true
+end
+
+local function ToggleFolderChildren(track, set, add)
 	local depth_to_select = track.depth + 1
 	local current_depth = depth_to_select
 	for i = track.number, reaper.CountTracks(0) - 1 do
 		local other_track_ref = reaper.GetTrack(0, i)
 		local folder_depth_state = reaper.GetMediaTrackInfo_Value(other_track_ref, "I_FOLDERDEPTH")
 
-		set[other_track_ref] = true
+		if add then
+			if PassesSelectFilters(other_track_ref) then
+				set[other_track_ref] = true
+			end
+		else
+			set[other_track_ref] = nil
+		end
 
 		current_depth = current_depth + folder_depth_state
 		if current_depth < depth_to_select then
@@ -346,101 +442,155 @@ local function AddPinnedTracks()
 	end
 end
 
-local function HandleClickTrack(track, is_pinned)
+local function HandleMainTrackClick(track)
 	local mods = ImGui.GetKeyMods(ctx)
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
-	local shift_held = (mods & ImGui.Mod_Shift) ~= 0
 	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
 	local should_solo = alt_held or solo_selected
-
-	if not focus_view then
-		if ctrl_held then -- multi-select
-			if reaper.IsTrackSelected(track.track_ref) then
-				reaper.SetTrackSelected(track.track_ref, false)
-			else
-				reaper.SetTrackSelected(track.track_ref, true)
-			end
-		else -- single select
-			reaper.SetOnlyTrackSelected(track.track_ref)
-		end
-		if should_solo then
-			SoloExclusive()
-		end
-		reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
-		return
-	end
 
 	if last_alt_click and not alt_held then
 		UnsoloAll()
 	end
 
-	-- SELECTION BEHAVIOR / what to select
-	if is_pinned then -- if a PINNED track was clicked, always multi-select
-		-- FIXME: when in ALL state and keep_pinned, pinned tracks cannot be focused ==> add from_all_state flag?
-		if focused_pinned_tracks[track.track_ref] then -- and is already selected then
-			focused_pinned_tracks[track.track_ref] = nil -- unselect it
+	if ctrl_held then -- multi-select
+		if focused_main_tracks[track.track_ref] then -- already selected
+			focused_main_tracks[track.track_ref] = nil -- unselect it
 		else
-			focused_pinned_tracks[track.track_ref] = true -- select it
-		end
-		-- if no pinned tracks remain focused, disable keep_pinned
-		if next(focused_pinned_tracks) == nil then
-			keep_pinned = false
-			SaveBoolState("keep_pinned", keep_pinned)
-		end
-		-- keep_pinned = next(focused_pinned_tracks) ~= nil
-	else -- clicked a MAIN track
-		-- add pinned tracks if keep_pinned and no pinned tracks are focused
-		--? move this to outside??
-		if keep_pinned and next(focused_pinned_tracks) == nil then
-			AddPinnedTracks()
-		end
-		if ctrl_held then -- multi-select
-			if focused_main_tracks[track.track_ref] then -- already selected
-				focused_main_tracks[track.track_ref] = nil -- unselect it
-			else
-				focused_main_tracks[track.track_ref] = true -- select it
-				if track.is_folder then
-					GetFolderChildren(track, focused_main_tracks)
-				end -- and select children, if folder
+			if show_pinned and NoFocusedPinnedTracks() then
+				AddPinnedTracks()
 			end
+			focused_main_tracks[track.track_ref] = true -- select it
+			if track.is_folder then
+				ToggleFolderChildren(track, focused_main_tracks, true)
+			end -- and select children, if folder
+		end
+		last_main_click_ref = nil
+	else -- single select
+		if track.track_ref == last_main_click_ref then -- if single-select clicked the same track
+			focused_main_tracks = {} -- or to restore ALL state later
 			last_main_click_ref = nil
-		else -- single select
-			if track.track_ref == last_main_click_ref then -- if single-select clicked the same track
-				focused_main_tracks = {} -- or to restore ALL state later
-				last_main_click_ref = nil
-			else
-				focused_main_tracks = { [track.track_ref] = true } -- single out clicked track
-				if track.is_folder then
-					GetFolderChildren(track, focused_main_tracks)
-				end -- and select children, if folder
-				last_main_click_ref = track.track_ref
+		else
+			if show_pinned and NoFocusedPinnedTracks() then
+				AddPinnedTracks()
 			end
+			focused_main_tracks = { [track.track_ref] = true } -- single out clicked tracks
+			if track.is_folder then
+				ToggleFolderChildren(track, focused_main_tracks, true)
+			end -- and select children, if folder
+			last_main_click_ref = track.track_ref
 		end
 	end
 
-	-- WHAT TO DO ABOUT IT
-	if next(focused_main_tracks) == nil and (keep_pinned or next(focused_pinned_tracks) == nil) then
+	if NoFocusedMainTracks() and (show_pinned or NoFocusedPinnedTracks()) then
 		RestoreAllState()
 	else
 		FocusSelected(should_solo)
 	end
+
 	last_alt_click = alt_held
 end
 
-local function PassesDisplayFilters(track)
-	if only_folder_parents and not track.is_folder then
-		return false
+local function HandlePinnedTrackClick(track)
+	local mods = ImGui.GetKeyMods(ctx)
+	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
+	local should_solo = alt_held or solo_selected
+
+	if focused_pinned_tracks[track.track_ref] then
+		focused_pinned_tracks[track.track_ref] = nil
+		if NoFocusedPinnedTracks() then
+			show_pinned = false
+		end
+		if NoFocusedMainTracks() and show_pinned then
+			RestoreAllState()
+			return
+		end
+	else
+		focused_pinned_tracks[track.track_ref] = true
 	end
-	if not show_mcp_only_tracks and IsMCPOnly(track.track_ref) then
-		return false
+
+	if IsInAllState() then
+		RestoreAllState()
+	else
+		FocusSelected(should_solo)
 	end
-	if not show_hidden_tracks and IsHidden(track.track_ref) then
-		return false
-	end
-	return true
 end
 
--- Q: EDGE CAGE when folder parent is pinned, but children are not (REAPER behavior) --> collapse in main somehow?
+local function CountVisiblePinnedTracks()
+	local count = 0
+	for _, pinned_track in ipairs(pinned_tracks) do
+		if IsVisible(pinned_track) then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+local function ShowHideAllInSet(set, show)
+	for _, track in ipairs(set) do
+		ShowHideTrack(track.track_ref, show)
+	end
+end
+
+local function HandleShowPinnedToggle() -- TODO: implement show/hide toggle for each track, or pinned track visibility are completely independent from focus? ==> selected = visible
+	local total = #pinned_tracks
+	if total == 0 then
+		return
+	end -- nothing to do
+
+	if IsInAllState() then
+		local visible_count = CountVisiblePinnedTracks()
+		if visible_count == total and not show_pinned then -- all pinned are visible
+			ShowHideAllInSet(pinned_tracks, false) -- hide all pinned
+		elseif visible_count == 0 and show_pinned then -- no pinned are visible
+			ShowHideAllInSet(pinned_tracks, true) -- show all pinned
+		end
+		reaper.TrackList_AdjustWindows(false)
+	else -- something is focused
+		local focused_count = CountKeys(focused_pinned_tracks)
+		if focused_count == total and not show_pinned then -- all pinned are focused
+			focused_pinned_tracks = {} -- unselect all pinned
+			FocusSelected(solo_selected)
+		elseif focused_count == 0 and show_pinned then -- no pinned are focused
+			AddPinnedTracks() -- add all pinned
+			FocusSelected(solo_selected)
+		end
+	end
+end
+
+local function HandleAllButtonClick()
+	if show_pinned and NoFocusedPinnedTracks() then
+		for _, pinned_track in ipairs(focused_pinned_tracks) do
+			ShowHideTrack(pinned_track, true) -- show all pinned
+		end
+	end
+	RestoreAllState()
+end
+
+local function HandleNavClick(track) -- TODO: if already soloed? unsolo
+	local mods = ImGui.GetKeyMods(ctx)
+	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
+	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
+	local should_solo = alt_held or solo_selected
+
+	if ctrl_held then -- multi-select
+		if reaper.IsTrackSelected(track.track_ref) then
+			reaper.SetTrackSelected(track.track_ref, false)
+		else
+			reaper.SetTrackSelected(track.track_ref, true)
+		end
+	else -- single select
+		reaper.SetOnlyTrackSelected(track.track_ref)
+	end
+
+	if should_solo then
+		SoloExclusive()
+	end
+
+	--? needs last alt?
+	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
+end
+
+-- Q: EDGE CASE when folder parent is pinned, but children are not (REAPER behavior) --> collapse in main somehow?
 local function SetupTrackListTableColumns()
 	ImGui.TableSetupColumn(ctx, "Track #", ImGui.TableColumnFlags_WidthFixed)
 	ImGui.TableSetupColumn(ctx, "Name", ImGui.TableColumnFlags_WidthStretch)
@@ -451,7 +601,7 @@ local function RenderTrackListRow(entry, focused_set, is_pinned)
 
 	if ImGui.TableSetColumnIndex(ctx, 0) then
 		local is_soloed = reaper.GetMediaTrackInfo_Value(entry.track_ref, "I_SOLO") ~= 0
-		local number_color = is_soloed and 0xFF4040FF or 0xFFFFFFFF -- TODO: incorporate in Theme
+		local number_color = is_soloed and Theme_colors.red or 0xFFFFFFFF -- TODO: use theme text color
 		ImGui.PushStyleColor(ctx, ImGui.Col_Text, SetAlpha(number_color, 0.5))
 		ImGui.Text(ctx, tostring(entry.number))
 		ImGui.PopStyleColor(ctx, 1)
@@ -465,7 +615,15 @@ local function RenderTrackListRow(entry, focused_set, is_pinned)
 			ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
 		)
 		if retval then
-			HandleClickTrack(entry, is_pinned)
+			if not focus_view then
+				HandleNavClick(entry)
+			else
+				if is_pinned then
+					HandlePinnedTrackClick(entry)
+				else
+					HandleMainTrackClick(entry)
+				end
+			end
 		end
 	end
 end
@@ -498,31 +656,15 @@ local function RenderTrackListTable(table_id, set, focused_set, is_pinned)
 	ImGui.EndTable(ctx)
 end
 
-local function ResolveMissingAllState()
-	local track_count = reaper.CountTracks(0)
-
-	if pending_loaded_entries == track_count then
-		return
-	end -- empty project OR all tracks loaded
-
-	if pending_loaded_entries == 0 then -- new project --> modal
-		local answer = reaper.ShowMessageBox(
-			"Capture ALL state as project currently is?",
-			"Track Compass: No stored track data",
-			4
-		)
-		if answer == 6 then
-			CaptureAllState(true)
-		end
-	else -- partial data
-		CaptureAllState(false)
+local function InitAllState() -- default all to show all
+	for i = 0, reaper.CountTracks(0) - 1 do
+		local track_ref = reaper.GetTrack(0, i)
+		local _, guid = reaper.GetSetMediaTrackInfo_String(track_ref, "GUID", "", false)
+		all_snapshot[track_ref] = { show_tcp = 1, show_mcp = 1, guid = guid }
 	end
-	-- TODO: depending on read, derive state? ==> if not the same as ALL, then focus on discrepancies?
-	-- if it's all the same, then no focused; if some are the same and others hidden but not the saved state, then add to focus and turn focus_view on
-	pending_loaded_entries = nil
 end
 
-local function LoadAllStateFromProject()
+local function LoadOrInitAllState()
 	all_snapshot = {}
 	focused_main_tracks = {}
 	focused_pinned_tracks = {}
@@ -532,13 +674,21 @@ local function LoadAllStateFromProject()
 	local loaded_data_entries = 0
 	for _, entry in ipairs(pinned_tracks) do
 		loaded_data_entries = loaded_data_entries + ReadProjStoredState(entry)
-
-		--    if IsSameAsAllState(entry.track_ref) then end
 	end
 	for _, entry in ipairs(main_tracks) do
 		loaded_data_entries = loaded_data_entries + ReadProjStoredState(entry)
 	end
-	return loaded_data_entries
+
+	local track_count = reaper.CountTracks(0)
+	if loaded_data_entries == track_count then
+		no_saved_data = false
+	elseif loaded_data_entries == 0 then
+		InitAllState()
+		no_saved_data = true
+	else
+		CaptureAllState(false)
+		no_saved_data = false
+	end
 end
 
 local function CheckProjectChanged()
@@ -568,10 +718,6 @@ local function loop()
 	ImGui.PopStyleColor(ctx, 5)
 
 	if visible then
-		if pending_loaded_entries ~= nil then
-			ResolveMissingAllState()
-		end
-
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, 2)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 4, 2)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarRounding, 1)
@@ -588,7 +734,6 @@ local function loop()
 		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelectedOverline, SetAlpha(Theme_colors.primary_color, 0))
 
 		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Lighten(Theme_colors.primary_color, 0.2), 0.2))
-		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Darken(Theme_colors.bg2_color, 0.1), 0.1)) --FIXME: redundant??
 		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Darken(mode_color, 0.2), 0.6))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Darken(mode_color, 0.1))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Darken(mode_color, 0.1), 0.67))
@@ -614,7 +759,7 @@ local function loop()
 
 		if ImGui.BeginTabBar(ctx, "##tabs") then
 			if CheckProjectChanged() then
-				pending_loaded_entries = LoadAllStateFromProject()
+				LoadOrInitAllState()
 			end
 
 			------------------------------- TRACK LIST TAB
@@ -631,7 +776,7 @@ local function loop()
 				-- -FLT_MIN = right align
 				if ImGui.BeginChild(ctx, "##tracklist", -FLT_MIN, list_height, ImGui.ChildFlags_FrameStyle) then
 					GatherAllTrackInfo()
-					RenderTrackListTable("##pinnedtracklist", pinned_tracks, focused_pinned_tracks, true) --? or optionally display all pinned, scroll main
+					RenderTrackListTable("##pinnedtracklist", pinned_tracks, focused_pinned_tracks, true) --TODO: or optionally display all pinned, scroll main
 					if next(pinned_tracks) ~= nil then
 						ImGui.Separator(ctx)
 					end
@@ -646,7 +791,7 @@ local function loop()
 
 				-- ALL BUTTON
 				if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
-					RestoreAllState()
+					HandleAllButtonClick()
 				end
 				ImGui.SetItemTooltip(
 					ctx,
@@ -656,16 +801,24 @@ local function loop()
 				ImGui.SameLine(ctx)
 
 				-- CAPTURE BUTTON
-				ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.automation_recording, 0.5))
-				ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Theme_colors.automation_recording)
-				ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.automation_recording, 0.67)) -- FIXME: not always red
+				if no_saved_data then -- red
+					ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.red, 0.5))
+					ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Theme_colors.red)
+					ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.red, 0.67))
+				else -- grey
+					ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.bg2_color, 0.6))
+					ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Darken(Theme_colors.bg2_color, 0.1))
+					ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.bg2_color, 0.8))
+				end
 
 				if ImGui.Button(ctx, "*", capture_button_width, 0) then
 					CaptureAllState(true)
 				end
 				ImGui.SetItemTooltip(
 					ctx,
-					"Capture default project state showing all desired tracks.\nIf you have tracks that are shown in the TCP but not MCP (eg. MIDI only tracks), this will keep that intact."
+					no_saved_data
+							and "No saved data for this project yet.\nClick to capture current state as the default state (ALL).\nIf you have tracks that are shown in the TCP but not MCP (eg. MIDI only tracks), this will keep that intact"
+						or "Update default project state (ALL)"
 				)
 
 				ImGui.PopStyleColor(ctx, 3)
@@ -694,25 +847,13 @@ local function loop()
 				ImGui.SetItemTooltip(ctx, "Exclusively solo selected tracks")
 
 				-- KEEP PINNED
-				local keep_pinned_change, keep_pinned_new = ImGui.Checkbox(ctx, "Keep pinned tracks", keep_pinned)
-				if keep_pinned_change then
-					keep_pinned = keep_pinned_new
-					SaveBoolState("keep_pinned", keep_pinned)
-					if
-						focus_view
-						and keep_pinned
-						and next(focused_main_tracks) ~= nil
-						and next(focused_pinned_tracks) == nil
-					then
-						AddPinnedTracks()
-						FocusSelected(solo_selected)
-					elseif focus_view and not keep_pinned and next(focused_pinned_tracks) ~= nil then
-						focused_pinned_tracks = {}
-						FocusSelected(solo_selected)
-						-- elseif not focus_view and not keep_pinned then -- TODO: not keep pinned workflow
-					end
+				local show_pinned_change, show_pinned_new = ImGui.Checkbox(ctx, "Show pinned tracks", show_pinned)
+				if show_pinned_change then
+					show_pinned = show_pinned_new
+					SaveBoolState("show_pinned", show_pinned) -- TODO: derive on open
+					HandleShowPinnedToggle()
 				end
-				ImGui.SetItemTooltip(ctx, "Keep pinned tracks while focusing")
+				ImGui.SetItemTooltip(ctx, "Show pinned tracks while focusing")
 
 				ImGui.PopStyleColor(ctx, 1)
 
@@ -761,7 +902,7 @@ local function loop()
 		---------------------
 
 		ImGui.PopStyleVar(ctx, 3)
-		ImGui.PopStyleColor(ctx, 27)
+		ImGui.PopStyleColor(ctx, 26)
 
 		ImGui.End(ctx)
 	end -- if visible
@@ -773,11 +914,11 @@ end
 local function Init()
 	CaptureCurrentTheme()
 	focus_view = LoadBoolState("focus_view", focus_view)
-	keep_pinned = LoadBoolState("keep_pinned", keep_pinned)
+	show_pinned = LoadBoolState("show_pinned", show_pinned)
 	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
 	show_hidden_tracks = LoadBoolState("show_hidden_tracks", show_hidden_tracks)
 	only_folder_parents = LoadBoolState("only_folder_parents", only_folder_parents)
-	pending_loaded_entries = LoadAllStateFromProject()
+	LoadOrInitAllState()
 end
 
 Init()
