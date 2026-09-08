@@ -35,6 +35,7 @@
 --   - When project has no saved ALL state data, capture button will be red, otherwise grey
 --   - "Focus view" and "Show pinned" are no longer saved, but derived from the project state when loaded.
 --   - Fixed loading data from changing projects in the same tab
+--   - Fixed orphaned children on ctrl unselect folder parent in "only show folder parents mode"
 -- @provides
 --   [main] .
 
@@ -68,6 +69,7 @@ local show_pinned = true
 local show_mcp_only_tracks = true
 local show_hidden_tracks = false
 local only_folder_parents = false
+-- local always_unselect_children = false
 
 ---------------------------------------------------------------------------
 -- CONFIG VARS
@@ -382,7 +384,7 @@ local function IsEntrySelected(track, set)
 	end
 end
 
-local function FocusSelected(should_solo) -- FIXME: refactor?
+local function FocusSelected(should_solo)
 	for _, pt in ipairs(pinned_tracks) do
 		local is_visible = show_pinned and IsMarkedForVisibility(pt.track_ref)
 		SetSolo(pt.track_ref, (should_solo and is_visible) and 1 or 0)
@@ -444,7 +446,7 @@ local function AddPinnedTracks()
 	end
 end
 
-local function HandleMainTrackClick(track) -- TODO: refactor?
+local function HandleMainTrackClick(track)
 	local mods = ImGui.GetKeyMods(ctx)
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
 	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
@@ -457,6 +459,10 @@ local function HandleMainTrackClick(track) -- TODO: refactor?
 	if ctrl_held then -- multi-select
 		if focused_main_tracks[track.track_ref] then -- already selected
 			focused_main_tracks[track.track_ref] = nil -- unselect it
+			-- TODO: optionally always untoggle children
+			if only_folder_parents and track.is_folder then
+				ToggleFolderChildren(track, focused_main_tracks, false)
+			end -- and unselect children, if folder and only parents
 		else
 			focused_main_tracks[track.track_ref] = true -- select it
 			if track.is_folder then
@@ -581,7 +587,7 @@ local function RenderPinnedTrackTable()
 				if
 					ImGui.Selectable(
 						ctx,
-						TrackPrefix(pt) .. pt.name,
+						TrackPrefix(pt) .. pt.name .. "##" .. pt.number,
 						IsEntrySelected(pt, marked_pinned_tracks),
 						ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
 					)
@@ -623,7 +629,7 @@ local function RenderMainTrackTable()
 				if
 					ImGui.Selectable(
 						ctx,
-						TrackPrefix(mt) .. mt.name,
+						TrackPrefix(mt) .. mt.name .. "##" .. mt.number,
 						IsEntrySelected(mt, focused_main_tracks),
 						ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
 					)
@@ -947,6 +953,7 @@ local function Init()
 	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
 	show_hidden_tracks = LoadBoolState("show_hidden_tracks", show_hidden_tracks)
 	only_folder_parents = LoadBoolState("only_folder_parents", only_folder_parents)
+
 	InitProject()
 end
 
