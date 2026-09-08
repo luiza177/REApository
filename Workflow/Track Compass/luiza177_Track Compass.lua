@@ -33,6 +33,8 @@
 --   - hard-coded red color for solo indicator and capture button.
 --   - Removed modal at project load without any saved data: a new project will be assumed to show everything, until ALL state is captured.
 --   - When project has no saved ALL state data, capture button will be red, otherwise grey
+--   - "Focus view" and "Show pinned" are no longer saved, but derived from the project state when loaded.
+--   - Fixed loading data from changing projects in the same tab
 -- @provides
 --   [main] .
 
@@ -55,7 +57,7 @@ local main_tracks = {}
 local focused_main_tracks = {}
 local last_alt_click = false
 local last_main_click_ref = nil
-local last_known_project = reaper.EnumProjects(-1)
+local last_known_project = ({ reaper.EnumProjects(-1) })[2] or ""
 local no_saved_data = false
 
 ----------------------------------------------------------------------------
@@ -210,6 +212,22 @@ end
 local function SetNormal(track_ref)
 	all_snapshot[track_ref].show_tcp = 1
 	all_snapshot[track_ref].show_mcp = 1
+end
+
+local function CountKeys(t)
+	local n = 0
+	for _ in pairs(t) do
+		n = n + 1
+	end
+	return n
+end
+
+local function IsSoloed(track_ref)
+	return reaper.GetMediaTrackInfo_Value(track_ref, "I_SOLO") ~= 0
+end
+
+local function SetSolo(track_ref, solo)
+	reaper.SetMediaTrackInfo_Value(track_ref, "I_SOLO", solo)
 end
 
 ---------------------------------------------------------------------------
@@ -367,12 +385,12 @@ end
 local function FocusSelected(should_solo) -- FIXME: refactor?
 	for _, pt in ipairs(pinned_tracks) do
 		local is_visible = show_pinned and IsMarkedForVisibility(pt.track_ref)
-		reaper.SetMediaTrackInfo_Value(pt.track_ref, "I_SOLO", (should_solo and is_visible) and 1 or 0)
+		SetSolo(pt.track_ref, (should_solo and is_visible) and 1 or 0)
 	end
 	for _, mt in ipairs(main_tracks) do
 		local focused = focused_main_tracks[mt.track_ref] == true
 		ShowHideTrack(mt.track_ref, focused)
-		reaper.SetMediaTrackInfo_Value(mt.track_ref, "I_SOLO", (should_solo and focused) and 1 or 0)
+		SetSolo(mt.track_ref, (should_solo and focused) and 1 or 0)
 	end
 
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
@@ -487,7 +505,7 @@ local function HandlePinnedTrackClick(track)
 end
 
 local function HandleShowPinnedToggle()
-	if NoPinnedTracksMarked() then
+	if show_pinned and NoPinnedTracksMarked() then
 		AddPinnedTracks()
 	end
 	ApplyPinnedTrackVisibility()
@@ -498,6 +516,8 @@ local function HandleNavClick(track) -- TODO: if already soloed? unsolo
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
 	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
 	local should_solo = alt_held or solo_selected
+	-- local already_soloed = false
+	-- if should_solo then already_soloed = IsSoloed(track.track_ref) end
 
 	if ctrl_held then -- multi-select
 		if reaper.IsTrackSelected(track.track_ref) then
@@ -509,7 +529,10 @@ local function HandleNavClick(track) -- TODO: if already soloed? unsolo
 		reaper.SetOnlyTrackSelected(track.track_ref)
 	end
 
+	-- if should_solo and already_soloed then
+	-- 	SetSolo(track.track_ref, false)
 	if should_solo then
+		-- elseif should_solo then
 		SoloExclusive()
 	end
 
@@ -517,115 +540,115 @@ local function HandleNavClick(track) -- TODO: if already soloed? unsolo
 	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 end
 
+-- RENDER TABLES
 -- Q: EDGE CASE when folder parent is pinned, but children are not (REAPER behavior) --> collapse in main somehow?
 local function SetupTrackListTableColumns()
 	ImGui.TableSetupColumn(ctx, "Track #", ImGui.TableColumnFlags_WidthFixed)
 	ImGui.TableSetupColumn(ctx, "Name", ImGui.TableColumnFlags_WidthStretch)
 end
 
-local function RenderPinnedTrackListRow(pt)
-	ImGui.TableNextRow(ctx)
+local function RenderTrackNumberColumn(track)
+	local number_color = IsSoloed(track.track_ref) and Theme_colors.red or Theme_colors.text_color
+	ImGui.PushStyleColor(ctx, ImGui.Col_Text, SetAlpha(number_color, 0.5))
+	ImGui.Text(ctx, tostring(track.number))
+	ImGui.PopStyleColor(ctx, 1)
+end
+
+local function RenderPinnedTrackTable()
+	if not ImGui.BeginTable(ctx, "##pinnedtracklist", 2, nil) then
+		return
+	end
+	SetupTrackListTableColumns()
 
 	local mode_color = (focus_view and show_pinned) and Theme_colors.secondary_color
 		or Lighten(Theme_colors.bg_color, 0.2)
-
-	ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(mode_color, 0.25)) -- list item
+	ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(mode_color, 0.25))
 	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(mode_color, 0.45))
 	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(mode_color, 0.35))
 	-- TODO: COSMETIC -- if not IsVisible(pt) then ImGui.PushStyleVar(ctx, italics) end
 
-	if ImGui.TableSetColumnIndex(ctx, 0) then
-		local is_soloed = reaper.GetMediaTrackInfo_Value(pt.track_ref, "I_SOLO") ~= 0
-		local number_color = is_soloed and Theme_colors.red or Theme_colors.text_color
-		ImGui.PushStyleColor(ctx, ImGui.Col_Text, SetAlpha(number_color, 0.5))
-		ImGui.Text(ctx, tostring(pt.number))
-		ImGui.PopStyleColor(ctx, 1)
-	end
+	for _, pt in ipairs(pinned_tracks) do
+		if PassesDisplayFilters(pt) then
+			ImGui.TableNextRow(ctx)
+			if ImGui.TableSetColumnIndex(ctx, 0) then
+				RenderTrackNumberColumn(pt)
+			end
+			if ImGui.TableSetColumnIndex(ctx, 1) then
+				local visible_color = (focus_view or IsVisible(pt)) and Theme_colors.text_color
+					or SetAlpha(Theme_colors.text_color, 0.5)
+				ImGui.PushStyleColor(ctx, ImGui.Col_Text, visible_color)
 
-	local visible_color = (focus_view or IsVisible(pt)) and Theme_colors.text_color
-		or SetAlpha(Theme_colors.text_color, 0.5)
-	ImGui.PushStyleColor(ctx, ImGui.Col_Text, visible_color)
-	if ImGui.TableSetColumnIndex(ctx, 1) then
-		local retval = ImGui.Selectable(
-			ctx,
-			TrackPrefix(pt) .. pt.name,
-			IsEntrySelected(pt, marked_pinned_tracks),
-			ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
-		)
-		if retval then
-			HandlePinnedTrackClick(pt)
-		end
-	end
-	ImGui.PopStyleColor(ctx, 4)
-	-- if not IsVisible(pt) then ImGui.PopStyleVar(ctx, italics) end
-end
+				if
+					ImGui.Selectable(
+						ctx,
+						TrackPrefix(pt) .. pt.name,
+						IsEntrySelected(pt, marked_pinned_tracks),
+						ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
+					)
+				then
+					HandlePinnedTrackClick(pt)
+				end
 
-local function RenderMainTrackListRow(mt)
-	ImGui.TableNextRow(ctx)
-	local mode_color = focus_view and Theme_colors.primary_color or Lighten(Theme_colors.bg_color, 0.2)
-
-	ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(mode_color, 0.25)) -- list item
-	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(mode_color, 0.45))
-	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(mode_color, 0.35))
-
-	if ImGui.TableSetColumnIndex(ctx, 0) then
-		local is_soloed = reaper.GetMediaTrackInfo_Value(mt.track_ref, "I_SOLO") ~= 0
-		local number_color = is_soloed and Theme_colors.red or Theme_colors.text_color
-		ImGui.PushStyleColor(ctx, ImGui.Col_Text, SetAlpha(number_color, 0.5))
-		ImGui.Text(ctx, tostring(mt.number))
-		ImGui.PopStyleColor(ctx, 1)
-	end
-
-	if ImGui.TableSetColumnIndex(ctx, 1) then
-		local retval = ImGui.Selectable(
-			ctx,
-			TrackPrefix(mt) .. mt.name,
-			IsEntrySelected(mt, focused_main_tracks),
-			ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
-		)
-		if retval then
-			if not focus_view then
-				HandleNavClick(mt)
-			else
-				HandleMainTrackClick(mt)
+				ImGui.PopStyleColor(ctx, 1)
 			end
 		end
 	end
+
 	ImGui.PopStyleColor(ctx, 3)
-end
-
-local function RenderTrackListTable(table_id, set, is_pinned) -- FIXME: refactor
-	local table_flags = not is_pinned and ImGui.TableFlags_ScrollY or nil
-	if not ImGui.BeginTable(ctx, table_id, 2, table_flags) then
-		return
-	end
-
-	SetupTrackListTableColumns()
-
-	local skip_depth = nil
-
-	for _, entry in ipairs(set) do
-		local parent_is_collapsed = not is_pinned and skip_depth ~= nil and entry.depth >= skip_depth
-
-		if not parent_is_collapsed and PassesDisplayFilters(entry) then
-			if is_pinned then
-				RenderPinnedTrackListRow(entry)
-			else
-				RenderMainTrackListRow(entry)
-			end
-		end
-
-		if not is_pinned and not parent_is_collapsed then
-			skip_depth = nil
-			if entry.is_folder and entry.is_collapsed then
-				skip_depth = entry.depth + 1
-			end
-		end
-	end
-
+	-- if not IsVisible(pt) then ImGui.PopStyleVar(ctx, italics) end
 	ImGui.EndTable(ctx)
 end
 
+local function RenderMainTrackTable()
+	if not ImGui.BeginTable(ctx, "##maintracklist", 2, nil) then
+		return
+	end
+	SetupTrackListTableColumns()
+
+	local mode_color = focus_view and Theme_colors.primary_color or Lighten(Theme_colors.bg_color, 0.2)
+	ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(mode_color, 0.25))
+	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(mode_color, 0.45))
+	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(mode_color, 0.35))
+
+	local skip_depth = nil
+	for _, mt in ipairs(main_tracks) do
+		local parent_is_collapsed = skip_depth ~= nil and mt.depth >= skip_depth
+
+		if not parent_is_collapsed and PassesDisplayFilters(mt) then
+			ImGui.TableNextRow(ctx)
+			if ImGui.TableSetColumnIndex(ctx, 0) then
+				RenderTrackNumberColumn(mt)
+			end
+			if ImGui.TableSetColumnIndex(ctx, 1) then
+				if
+					ImGui.Selectable(
+						ctx,
+						TrackPrefix(mt) .. mt.name,
+						IsEntrySelected(mt, focused_main_tracks),
+						ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
+					)
+				then
+					if not focus_view then
+						HandleNavClick(mt)
+					else
+						HandleMainTrackClick(mt)
+					end
+				end
+			end
+		end
+		if not parent_is_collapsed then
+			skip_depth = nil
+			if mt.is_folder and mt.is_collapsed then
+				skip_depth = mt.depth + 1
+			end
+		end
+	end
+
+	ImGui.PopStyleColor(ctx, 3)
+	ImGui.EndTable(ctx)
+end
+
+-- DATA INIT
 local function InitAllState()
 	-- default all to show all
 	for i = 0, reaper.CountTracks(0) - 1 do
@@ -636,6 +659,7 @@ local function InitAllState()
 end
 
 local function InitPinnedTracks()
+	marked_pinned_tracks = {}
 	for _, pt in ipairs(pinned_tracks) do
 		if IsVisible(pt) then
 			marked_pinned_tracks[pt.track_ref] = true
@@ -645,10 +669,6 @@ end
 
 local function LoadOrInitAllState()
 	GatherAllTrackInfo()
-
-	focused_main_tracks = {}
-	marked_pinned_tracks = {}
-	-- InitPinnedTracks()
 
 	all_snapshot = {}
 	local loaded_data_entries = 0
@@ -671,15 +691,39 @@ local function LoadOrInitAllState()
 	end
 end
 
+local function InitFocusMode()
+	focused_main_tracks = {}
+	focus_view = false -- if one track is hidden when all state says it should be showing, then focus_view = true
+	local num_archived_tracks = 0
+	for _, mt in ipairs(main_tracks) do
+		-- add to focused_main_tracks all tracks that are visible, but if #focused_main == #main_tracks then all state.
+		if
+			(all_snapshot[mt.track_ref].show_tcp ~= 0 or all_snapshot[mt.track_ref].show_mcp ~= 0) -- not archived
+			and all_snapshot[mt.track_ref].show_tcp == mt.show_tcp -- showing
+			and all_snapshot[mt.track_ref].show_mcp == mt.show_mcp -- FIXME: or is it better to check for general visibility? in case converted to mcp-only or something?
+		then
+			focused_main_tracks[mt.track_ref] = true
+			focus_view = true
+		elseif all_snapshot[mt.track_ref].show_tcp == 0 and all_snapshot[mt.track_ref].show_mcp == 0 then
+			num_archived_tracks = num_archived_tracks + 1
+		end
+	end
+
+	if #main_tracks - num_archived_tracks == CountKeys(focused_main_tracks) then -- actually in ALL state
+		focused_main_tracks = {}
+		focus_view = false -- TODO: LATER -- alternatively option to default to focus mode even if in ALL state
+	end
+end
+
 local function InitProject()
 	LoadOrInitAllState()
 	InitPinnedTracks()
-	InitShowPinned()
+	show_pinned = CountKeys(marked_pinned_tracks) > 0 and true or false
 	InitFocusMode()
 end
 
 local function CheckProjectChanged()
-	local current_project = reaper.EnumProjects(-1)
+	local current_project = ({ reaper.EnumProjects(-1) })[2] or ""
 	local project_changed = current_project ~= last_known_project
 	if project_changed then
 		last_known_project = current_project
@@ -743,7 +787,6 @@ local function loop()
 
 		if ImGui.BeginTabBar(ctx, "##tabs") then
 			if CheckProjectChanged() then
-				-- LoadOrInitAllState()
 				InitProject()
 			end
 
@@ -761,11 +804,13 @@ local function loop()
 				-- -FLT_MIN = right align
 				if ImGui.BeginChild(ctx, "##tracklist", -FLT_MIN, list_height, ImGui.ChildFlags_FrameStyle) then
 					GatherAllTrackInfo()
-					RenderTrackListTable("##pinnedtracklist", pinned_tracks, true) --TODO: LATER -- or optionally display all pinned, scroll main
+					-- RenderTrackListTable("##pinnedtracklist", pinned_tracks, true)
+					RenderPinnedTrackTable() --TODO: LATER -- or optionally display all pinned, scroll main
 					if next(pinned_tracks) ~= nil then
 						ImGui.Separator(ctx)
 					end
-					RenderTrackListTable("##maintracklist", main_tracks, false)
+					-- RenderTrackListTable("##maintracklist", main_tracks, false)
+					RenderMainTrackTable()
 					ImGui.EndChild(ctx)
 				end
 
@@ -899,12 +944,9 @@ end
 
 local function Init()
 	CaptureCurrentTheme()
-	focus_view = LoadBoolState("focus_view", focus_view)
-	-- show_pinned = LoadBoolState("show_pinned", show_pinned)
 	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
 	show_hidden_tracks = LoadBoolState("show_hidden_tracks", show_hidden_tracks)
 	only_folder_parents = LoadBoolState("only_folder_parents", only_folder_parents)
-	-- LoadOrInitAllState()
 	InitProject()
 end
 
