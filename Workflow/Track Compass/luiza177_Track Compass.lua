@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.3.1
+-- @version 0.3.2
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -27,7 +27,7 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Refined pinned tracks visibility related colors and style
+--   - Clicking folder icons now expand/collapses folder tracks
 -- @provides
 --   [main] .
 
@@ -229,6 +229,8 @@ end
 
 ---------------------------------------------------------------------------
 -- COLOR AND THEME METHODS
+local TRANSPARENT = 0x00000000
+
 local function SetAlpha(color, alpha)
 	-- alpha: 0.0 (fully transparent) to 1.0 (fully opaque)
 	local alpha_byte = math.floor(alpha * 255 + 0.5)
@@ -363,12 +365,12 @@ end
 
 -- MAIN LIST
 local function TrackPrefix(track)
-	local indent_str = string.rep("    ", track.depth)
-	local folder_str = ""
-	if track.is_folder then
-		folder_str = track.is_collapsed and "▸ " or "▾ "
-	end
-	return indent_str .. folder_str
+	local indent_str = string.rep("     ", track.depth)
+	-- local folder_str = ""
+	-- if track.is_folder then
+	-- 	folder_str = track.is_collapsed and "▸ " or "▾ "
+	-- end
+	return indent_str --.. folder_str
 end
 
 local function IsEntrySelected(track, set)
@@ -454,7 +456,7 @@ local function HandleMainTrackClick(track)
 	if ctrl_held then -- multi-select
 		if focused_main_tracks[track.track_ref] then -- already selected
 			focused_main_tracks[track.track_ref] = nil -- unselect it
-			-- TODO: optionally always untoggle children
+			-- TODO: OPTION -- optionally always untoggle children
 			if only_folder_parents and track.is_folder then
 				ToggleFolderChildren(track, focused_main_tracks, false)
 			end -- and unselect children, if folder and only parents
@@ -512,7 +514,7 @@ local function HandleShowPinnedToggle()
 	ApplyPinnedTrackVisibility()
 end
 
-local function HandleNavClick(track) -- TODO: if already soloed? unsolo
+local function HandleNavClick(track) -- TODO: FUNC -- if already soloed? unsolo
 	local mods = ImGui.GetKeyMods(ctx)
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
 	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
@@ -546,8 +548,10 @@ end
 local function SetupTrackListTableColumns()
 	ImGui.TableSetupColumn(ctx, "Track #", ImGui.TableColumnFlags_WidthFixed)
 	ImGui.TableSetupColumn(ctx, "Name", ImGui.TableColumnFlags_WidthStretch)
+	-- TODO: FUNC -- pin/unpin button
 end
 
+-- TODO: COSMETIC -- maybe add dimmed style
 local function RenderTrackNumberColumn(track)
 	local number_color = IsSoloed(track.track_ref) and Theme_colors.red or Theme_colors.text_color
 	ImGui.PushStyleColor(ctx, ImGui.Col_Text, SetAlpha(number_color, 0.5))
@@ -555,7 +559,7 @@ local function RenderTrackNumberColumn(track)
 	ImGui.PopStyleColor(ctx, 1)
 end
 
-local function GetPinnedTrackVisibilityState(pt) -- TODO: rename pinned track visibility state
+local function GetPinnedTrackVisibilityState(pt)
 	if IsMarkedForVisibility(pt.track_ref) then
 		if show_pinned then
 			return "showing"
@@ -651,6 +655,7 @@ local function RenderMainTrackTable()
 	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(mode_color, 0.35))
 
 	local skip_depth = nil
+
 	for _, mt in ipairs(main_tracks) do
 		local parent_is_collapsed = skip_depth ~= nil and mt.depth >= skip_depth
 
@@ -660,12 +665,41 @@ local function RenderMainTrackTable()
 				RenderTrackNumberColumn(mt)
 			end
 			if ImGui.TableSetColumnIndex(ctx, 1) then
+				local is_button_hovered = false
+				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
+				ImGui.SetNextItemAllowOverlap(ctx) -- FIXME: NEXT -- do something like this for pinned tracks / add back folder icon
+				ImGui.Text(ctx, TrackPrefix(mt))
+				ImGui.SameLine(ctx)
+				if mt.is_folder then
+					ImGui.PushStyleColor(ctx, ImGui.Col_Button, TRANSPARENT) -- TODO: COSMETIC / MAYBE -- make it round?
+					ImGui.PushStyleColor(ctx, ImGui.Col_Border, TRANSPARENT)
+					-- ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, "")
+					-- ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, "")
+					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 1)
+					if ImGui.SmallButton(ctx, (mt.is_collapsed and "▸" or "▾") .. "##" .. mt.number) then
+						if mt.is_collapsed then
+							reaper.SetMediaTrackInfo_Value(mt.track_ref, "I_FOLDERCOMPACT", 0)
+						else
+							reaper.SetMediaTrackInfo_Value(mt.track_ref, "I_FOLDERCOMPACT", 2)
+						end
+					end
+					if ImGui.IsItemHovered(ctx) then
+						is_button_hovered = true
+					end
+					ImGui.PopStyleVar(ctx, 1)
+					ImGui.PopStyleColor(ctx, 2)
+					ImGui.SameLine(ctx)
+				end
+				local selectable_flags = ImGui.SelectableFlags_SpanAllColumns -- | ImGui.SelectableFlags_AllowOverlap
+				if is_button_hovered then
+					selectable_flags = selectable_flags | ImGui.SelectableFlags_Highlight
+				end
 				if
 					ImGui.Selectable(
 						ctx,
-						TrackPrefix(mt) .. mt.name .. "##" .. mt.number,
+						mt.name .. "##" .. mt.number,
 						IsEntrySelected(mt, focused_main_tracks),
-						ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
+						selectable_flags
 					)
 				then
 					if not focus_view then
@@ -674,7 +708,9 @@ local function RenderMainTrackTable()
 						HandleMainTrackClick(mt)
 					end
 				end
+				ImGui.PopStyleVar(ctx, 1)
 			end
+			-- Q: will the hover trick be possible in a button in a next column?
 		end
 		if not parent_is_collapsed then
 			skip_depth = nil
@@ -683,7 +719,6 @@ local function RenderMainTrackTable()
 			end
 		end
 	end
-
 	ImGui.PopStyleColor(ctx, 3)
 	ImGui.EndTable(ctx)
 end
@@ -751,7 +786,7 @@ local function InitFocusMode()
 
 	if #main_tracks - num_archived_tracks == CountKeys(focused_main_tracks) then -- actually in ALL state
 		focused_main_tracks = {}
-		focus_view = false -- TODO: LATER -- alternatively option to default to focus mode even if in ALL state
+		focus_view = false -- TODO: OPTION -- alternatively option to default to focus mode even if in ALL state
 	end
 end
 
@@ -802,7 +837,7 @@ local function loop()
 		ImGui.PushStyleColor(ctx, ImGui.Col_Tab, SetAlpha(Theme_colors.bg2_color, 0.45))
 		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmed, SetAlpha(Darken(Theme_colors.bg2_color, 0.2), 0.98))
 		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelected, SetAlpha(Theme_colors.bg2_color, 0.3))
-		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelectedOverline, SetAlpha(Theme_colors.primary_color, 0))
+		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelectedOverline, TRANSPARENT)
 
 		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Lighten(Theme_colors.primary_color, 0.2), 0.2))
 		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Darken(mode_color, 0.2), 0.6))
@@ -844,17 +879,18 @@ local function loop()
 				-- -FLT_MIN = right align
 				if ImGui.BeginChild(ctx, "##tracklist", -FLT_MIN, list_height, ImGui.ChildFlags_FrameStyle) then
 					GatherAllTrackInfo()
-					-- RenderTrackListTable("##pinnedtracklist", pinned_tracks, true)
-					RenderPinnedTrackTable() --TODO: LATER -- or optionally display all pinned, scroll main
+					RenderPinnedTrackTable() --TODO: OPTION -- or optionally display all pinned, scroll main
 					if next(pinned_tracks) ~= nil then
 						ImGui.Separator(ctx)
 					end
-					-- RenderTrackListTable("##maintracklist", main_tracks, false)
 					RenderMainTrackTable()
+
+					-- TODO: at the bottom of Child, expand all, collapse all buttons
 					ImGui.EndChild(ctx)
 				end
 
 				--------------------------- MAIN BUTTONS
+				-- TODO: COSMETIC -- find better colors / icon
 				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
 				local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
 				local capture_button_width = 20
@@ -908,6 +944,7 @@ local function loop()
 				ImGui.SetItemTooltip(ctx, "Show only selected tracks in Arrange view and Mixer")
 
 				-- SOLO SELECTED
+				-- TODO: COSMETIC -- label text red when enabled, and checkmark?
 				local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
 				if solo_selected_change then
 					solo_selected = solo_selected_new
