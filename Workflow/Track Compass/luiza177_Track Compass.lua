@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.3.0
+-- @version 0.3.1
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -27,15 +27,7 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Completely reworked how Track Compass treats pinned tracks: Pinned tracks are now completely independent from the focus state. Click tracks marks them for showing in focus mode, or toggles visibility in nav mode.
---   - The now renamed "Show pinned tracks" toggle now toggles between showing or hiding the pinned tracks marked for visibility.
---   - Added button to adapt to theme colors.
---   - hard-coded red color for solo indicator and capture button.
---   - Removed modal at project load without any saved data: a new project will be assumed to show everything, until ALL state is captured.
---   - When project has no saved ALL state data, capture button will be red, otherwise grey
---   - "Focus view" and "Show pinned" are no longer saved, but derived from the project state when loaded.
---   - Fixed loading data from changing projects in the same tab
---   - Fixed orphaned children on ctrl unselect folder parent in "only show folder parents mode"
+--   - Refined pinned tracks visibility related colors and style
 -- @provides
 --   [main] .
 
@@ -49,6 +41,9 @@ local ImGui = require("imgui")("0.10")
 local ctx = ImGui.CreateContext("Track Compass")
 local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 local ext_name = "luiza177.TrackCompass"
+
+local italic_font = ImGui.CreateFont("sans-serif", ImGui.FontFlags_Italic)
+ImGui.Attach(ctx, italic_font)
 
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
@@ -560,18 +555,48 @@ local function RenderTrackNumberColumn(track)
 	ImGui.PopStyleColor(ctx, 1)
 end
 
+local function GetPinnedTrackVisibilityState(pt) -- TODO: rename pinned track visibility state
+	if IsMarkedForVisibility(pt.track_ref) then
+		if show_pinned then
+			return "showing"
+		else
+			return "suppressed"
+		end
+	end
+	return "excluded"
+end
+
+local function GetPinnedTextStyle(pt)
+	local state = GetPinnedTrackVisibilityState(pt)
+	if state == "excluded" then
+		return SetAlpha(Theme_colors.text_color, 0.2), true -- dimmed, italic
+	elseif state == "suppressed" then -- showing suppressed
+		return SetAlpha(Theme_colors.text_color, 0.6), false -- medium opacity, normal
+	else -- showing
+		return Theme_colors.text_color, false -- full opacity, normal
+	end
+end
+
+local function GetPinnedHighlightColor(pt)
+	local state = GetPinnedTrackVisibilityState(pt)
+	if focus_view and state == "showing" and not NoFocusedMainTracks() then
+		return Theme_colors.secondary_color -- normal mode highlight
+	end
+	return Lighten(Theme_colors.bg_color, 0.2) -- neutral grey highlight
+end
+
+local function IsPinnedRowHighlighted(pt)
+	if focus_view and not NoFocusedMainTracks() then
+		return GetPinnedTrackVisibilityState(pt) ~= "excluded"
+	end
+	return reaper.IsTrackSelected(pt.track_ref)
+end
+
 local function RenderPinnedTrackTable()
 	if not ImGui.BeginTable(ctx, "##pinnedtracklist", 2, nil) then
 		return
 	end
 	SetupTrackListTableColumns()
-
-	local mode_color = (focus_view and show_pinned) and Theme_colors.secondary_color
-		or Lighten(Theme_colors.bg_color, 0.2)
-	ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(mode_color, 0.25))
-	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(mode_color, 0.45))
-	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(mode_color, 0.35))
-	-- TODO: COSMETIC -- if not IsVisible(pt) then ImGui.PushStyleVar(ctx, italics) end
 
 	for _, pt in ipairs(pinned_tracks) do
 		if PassesDisplayFilters(pt) then
@@ -580,28 +605,37 @@ local function RenderPinnedTrackTable()
 				RenderTrackNumberColumn(pt)
 			end
 			if ImGui.TableSetColumnIndex(ctx, 1) then
-				local visible_color = (focus_view or IsVisible(pt)) and Theme_colors.text_color
-					or SetAlpha(Theme_colors.text_color, 0.5)
-				ImGui.PushStyleColor(ctx, ImGui.Col_Text, visible_color)
+				local text_color, italic = GetPinnedTextStyle(pt)
+
+				local highlight_color = GetPinnedHighlightColor(pt)
+				ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(highlight_color, 0.25))
+				ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(highlight_color, 0.45))
+				ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(highlight_color, 0.35))
+
+				ImGui.PushStyleColor(ctx, ImGui.Col_Text, text_color)
+				if italic then
+					ImGui.PushFont(ctx, italic_font, ImGui.GetFontSize(ctx))
+				end
 
 				if
 					ImGui.Selectable(
 						ctx,
 						TrackPrefix(pt) .. pt.name .. "##" .. pt.number,
-						IsEntrySelected(pt, marked_pinned_tracks),
+						IsPinnedRowHighlighted(pt),
 						ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
 					)
 				then
 					HandlePinnedTrackClick(pt)
 				end
 
-				ImGui.PopStyleColor(ctx, 1)
+				if italic then
+					ImGui.PopFont(ctx)
+				end
+				ImGui.PopStyleColor(ctx, 4)
 			end
 		end
 	end
 
-	ImGui.PopStyleColor(ctx, 3)
-	-- if not IsVisible(pt) then ImGui.PopStyleVar(ctx, italics) end
 	ImGui.EndTable(ctx)
 end
 
