@@ -56,6 +56,10 @@ local last_main_click_ref = nil
 local last_known_project = ({ reaper.EnumProjects(-1) })[2] or ""
 local no_saved_data = false
 
+-- UI GLOBALS --------------------------------------------------------------
+local hide_options = false
+local pin_buttons_hover_state = {}
+
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
 local focus_view = true
@@ -355,7 +359,7 @@ local function RestoreAllState()
 			save_after = true
 		end
 	end
-	if save_after then -- TODO: reconsider if this should save
+	if save_after then -- TODO: ** -- econsider if this should save
 		SaveAllState()
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
@@ -548,15 +552,42 @@ end
 local function SetupTrackListTableColumns()
 	ImGui.TableSetupColumn(ctx, "Track #", ImGui.TableColumnFlags_WidthFixed)
 	ImGui.TableSetupColumn(ctx, "Name", ImGui.TableColumnFlags_WidthStretch)
-	-- TODO: FUNC -- pin/unpin button
+	-- ImGui.TableSetupColumn(ctx, "Pin/Unpin", ImGui.TableColumnFlags_WidthFixed)
 end
 
--- TODO: COSMETIC -- maybe add dimmed style
+-- TODO: COSMETIC / MAYBE -- add dimmed style
 local function RenderTrackNumberColumn(track)
 	local number_color = IsSoloed(track.track_ref) and Theme_colors.red or Theme_colors.text_color
 	ImGui.PushStyleColor(ctx, ImGui.Col_Text, SetAlpha(number_color, 0.5))
 	ImGui.Text(ctx, tostring(track.number))
 	ImGui.PopStyleColor(ctx, 1)
+end
+
+local function RenderPinUnpinButtonColumn(unpin, track)
+	ImGui.PushStyleColor(ctx, ImGui.Col_Button, TRANSPARENT)
+	ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, TRANSPARENT)
+	ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, TRANSPARENT)
+	ImGui.PushStyleColor(ctx, ImGui.Col_Border, TRANSPARENT)
+
+	local main_color = unpin and Theme_colors.red or Theme_colors.primary_color
+	local was_hovered = pin_buttons_hover_state[track.track_ref] == true
+	local color = was_hovered and 0xFFFFFFFF or Lighten(main_color, 0.1)
+	ImGui.PushStyleColor(ctx, ImGui.Col_Text, color)
+
+	if ImGui.SmallButton(ctx, (unpin and "x" or "o") .. "##" .. track.number) then
+		reaper.SetMediaTrackInfo_Value(track.track_ref, "B_TCPPIN", unpin and 0 or 1)
+		if unpin then
+			marked_pinned_tracks[track.track_ref] = nil
+		else
+			marked_pinned_tracks[track.track_ref] = true
+			focused_main_tracks[track.track_ref] = nil
+		end
+	end
+
+	pin_buttons_hover_state[track.track_ref] = ImGui.IsItemHovered(ctx)
+
+	ImGui.PopStyleColor(ctx, 5)
+	return was_hovered
 end
 
 local function GetPinnedTrackVisibilityState(pt)
@@ -637,6 +668,7 @@ local function RenderPinnedTrackTable()
 				end
 				ImGui.PopStyleColor(ctx, 4)
 			end
+			-- if ImGui.TableSetColumnIndex(ctx, 2) then RenderPinUnpinButtonColumn(true, pt) end
 		end
 	end
 
@@ -661,15 +693,19 @@ local function RenderMainTrackTable()
 
 		if not parent_is_collapsed and PassesDisplayFilters(mt) then
 			ImGui.TableNextRow(ctx)
+			local pin_was_hovered = pin_buttons_hover_state[mt.track_ref] == true
 			if ImGui.TableSetColumnIndex(ctx, 0) then
 				RenderTrackNumberColumn(mt)
 			end
 			if ImGui.TableSetColumnIndex(ctx, 1) then
 				local is_button_hovered = false
+
 				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
 				ImGui.SetNextItemAllowOverlap(ctx) -- FIXME: NEXT -- do something like this for pinned tracks / add back folder icon
 				ImGui.Text(ctx, TrackPrefix(mt))
+
 				ImGui.SameLine(ctx)
+
 				if mt.is_folder then
 					ImGui.PushStyleColor(ctx, ImGui.Col_Button, TRANSPARENT) -- TODO: COSMETIC / MAYBE -- make it round?
 					ImGui.PushStyleColor(ctx, ImGui.Col_Border, TRANSPARENT)
@@ -690,10 +726,12 @@ local function RenderMainTrackTable()
 					ImGui.PopStyleColor(ctx, 2)
 					ImGui.SameLine(ctx)
 				end
-				local selectable_flags = ImGui.SelectableFlags_SpanAllColumns -- | ImGui.SelectableFlags_AllowOverlap
-				if is_button_hovered then
+
+				local selectable_flags = ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
+				if is_button_hovered or pin_was_hovered then
 					selectable_flags = selectable_flags | ImGui.SelectableFlags_Highlight
 				end
+
 				if
 					ImGui.Selectable(
 						ctx,
@@ -708,9 +746,10 @@ local function RenderMainTrackTable()
 						HandleMainTrackClick(mt)
 					end
 				end
+
 				ImGui.PopStyleVar(ctx, 1)
 			end
-			-- Q: will the hover trick be possible in a button in a next column?
+			-- if ImGui.TableSetColumnIndex(ctx, 2) then RenderPinUnpinButtonColumn(false, mt) end
 		end
 		if not parent_is_collapsed then
 			skip_depth = nil
@@ -786,7 +825,7 @@ local function InitFocusMode()
 
 	if #main_tracks - num_archived_tracks == CountKeys(focused_main_tracks) then -- actually in ALL state
 		focused_main_tracks = {}
-		focus_view = false -- TODO: OPTION -- alternatively option to default to focus mode even if in ALL state
+		focus_view = false -- TODO: OPTION* -- alternatively option to default to focus mode even if in ALL state: [needs if hide_options]
 	end
 end
 
@@ -868,7 +907,7 @@ local function loop()
 			------------------------------- TRACK LIST TAB
 			if ImGui.BeginTabItem(ctx, "Track list") then
 				--------------------------- WINDOW SIZING
-				local NUM_BELOW_ELEMENTS = 4
+				local NUM_BELOW_ELEMENTS = 4 -- or 0 or 1 if not hide_options
 				local footer_height = ImGui.GetFrameHeightWithSpacing(ctx) * NUM_BELOW_ELEMENTS
 				local list_height = -footer_height
 
@@ -879,13 +918,13 @@ local function loop()
 				-- -FLT_MIN = right align
 				if ImGui.BeginChild(ctx, "##tracklist", -FLT_MIN, list_height, ImGui.ChildFlags_FrameStyle) then
 					GatherAllTrackInfo()
-					RenderPinnedTrackTable() --TODO: OPTION -- or optionally display all pinned, scroll main
+					RenderPinnedTrackTable() --TODO: OPTION / MAYBE -- optionally display all pinned, scroll main
 					if next(pinned_tracks) ~= nil then
 						ImGui.Separator(ctx)
 					end
 					RenderMainTrackTable()
 
-					-- TODO: at the bottom of Child, expand all, collapse all buttons
+					-- TODO: FUNC -- at the bottom of Child, expand all, collapse all buttons
 					ImGui.EndChild(ctx)
 				end
 
@@ -932,11 +971,11 @@ local function loop()
 				ImGui.PopStyleVar(ctx, 1)
 
 				------------------------------ OPTIONS CHECKBOXES
+				-- if not hide_options then
 				-- FOCUS VIEW
 				local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
 				if focus_changed then
 					focus_view = focus_new
-					-- SaveBoolState("focus_view", focus_view)
 					if not focus_view then
 						RestoreAllState()
 					end
@@ -958,10 +997,10 @@ local function loop()
 				local show_pinned_change, show_pinned_new = ImGui.Checkbox(ctx, "Show pinned tracks", show_pinned)
 				if show_pinned_change then
 					show_pinned = show_pinned_new
-					-- SaveBoolState("show_pinned", show_pinned)
 					HandleShowPinnedToggle()
 				end
 				ImGui.SetItemTooltip(ctx, "Show pinned tracks marked for visibility")
+				-- end
 
 				ImGui.PopStyleColor(ctx, 1)
 
@@ -969,6 +1008,8 @@ local function loop()
 			end -- tab item
 			------------------------------- OPTIONS TAB
 			if ImGui.BeginTabItem(ctx, "Options") then
+				-- separator with title: List options
+
 				-- SHOW MCP-only
 				local show_mcp_only_tracks_change, show_mcp_only_tracks_new =
 					ImGui.Checkbox(ctx, "Show MCP-only", show_mcp_only_tracks)
@@ -995,6 +1036,12 @@ local function loop()
 					SaveBoolState("only_folder_parents", only_folder_parents)
 				end
 				ImGui.SetItemTooltip(ctx, "Show only folder parents in track list")
+
+				-- Separator: UI options
+
+				-- SHOW/HIDE OPTIONS
+				-- TODO: OPTION -- change to checkbox, move to options tab.
+				-- TODO: OPTION -- show/hide ALL/CAPTURE button, if not: show CAPTURE here
 
 				ImGui.Spacing(ctx)
 
