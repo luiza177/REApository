@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.3.2
+-- @version 0.3.3
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -19,15 +19,16 @@
 --   And, of course, add some bells and whistles.
 --   ## (Current?) Limitations:
 --   - No click-and-drag to select
---   - No toggling folder states
 --   ## Roadmap:
---   - expand/collapse folders
 --   - keyboard navigation
 --   - allow drag-select
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Clicking folder icons now expand/collapses folder tracks
+--*   - Added right-click context menu for setting tracks as MCP- or TCP-only or hiding them
+--*   - Added options for show/hiding the option checkboxes and ALL/capture button in the track list tab
+--!   - Added option to always untoggle folder children when clicking a parent again
+--!   - Added shortcuts for restoring all/default state (ctrl+A), focus mode (ctrl+f), show pinned tracks (ctrl+p).
 -- @provides
 --   [main] .
 
@@ -58,6 +59,7 @@ local no_saved_data = false
 
 -- UI GLOBALS --------------------------------------------------------------
 local hide_options = false
+local hide_all_button = false
 local pin_buttons_hover_state = {}
 
 ----------------------------------------------------------------------------
@@ -174,47 +176,6 @@ local function IsVisible(track)
 	return tcp == 1 or mcp == 1
 end
 
-local function IsTCPOnly(track_ref)
-	if not all_snapshot[track_ref] then
-		return false
-	end
-	return all_snapshot[track_ref].show_mcp == 0 and all_snapshot[track_ref].show_tcp == 1
-end
-
-local function IsMCPOnly(track_ref)
-	if not all_snapshot[track_ref] then
-		return false
-	end
-	return all_snapshot[track_ref].show_mcp == 1 and all_snapshot[track_ref].show_tcp == 0
-end
-
-local function IsArchived(track_ref)
-	if not all_snapshot[track_ref] then
-		return false
-	end
-	return all_snapshot[track_ref].show_mcp == 0 and all_snapshot[track_ref].show_tcp == 0
-end
-
-local function SetTCPOnly(track_ref)
-	all_snapshot[track_ref].show_tcp = 1
-	all_snapshot[track_ref].show_mcp = 0
-end
-
-local function SetMCPOnly(track_ref)
-	all_snapshot[track_ref].show_tcp = 0
-	all_snapshot[track_ref].show_mcp = 1
-end
-
-local function SetArchived(track_ref)
-	all_snapshot[track_ref].show_tcp = 0
-	all_snapshot[track_ref].show_mcp = 0
-end
-
-local function SetNormal(track_ref)
-	all_snapshot[track_ref].show_tcp = 1
-	all_snapshot[track_ref].show_mcp = 1
-end
-
 local function CountKeys(t)
 	local n = 0
 	for _ in pairs(t) do
@@ -234,6 +195,7 @@ end
 ---------------------------------------------------------------------------
 -- COLOR AND THEME METHODS
 local TRANSPARENT = 0x00000000
+local ROUNDING = 3 -- TODO: apply
 
 local function SetAlpha(color, alpha)
 	-- alpha: 0.0 (fully transparent) to 1.0 (fully opaque)
@@ -351,6 +313,69 @@ local function ShowHideTrack(track_ref, show)
 	return has_data
 end
 
+local function IsNormal(track_ref)
+	if not all_snapshot[track_ref] then
+		return false
+	end
+	return all_snapshot[track_ref].show_mcp == 1 and all_snapshot[track_ref].show_tcp == 1
+end
+
+local function IsTCPOnly(track_ref)
+	if not all_snapshot[track_ref] then
+		return false
+	end
+	return all_snapshot[track_ref].show_mcp == 0 and all_snapshot[track_ref].show_tcp == 1
+end
+
+local function IsMCPOnly(track_ref)
+	if not all_snapshot[track_ref] then
+		return false
+	end
+	return all_snapshot[track_ref].show_mcp == 1 and all_snapshot[track_ref].show_tcp == 0
+end
+
+local function IsArchived(track_ref)
+	if not all_snapshot[track_ref] then
+		return false
+	end
+	return all_snapshot[track_ref].show_mcp == 0 and all_snapshot[track_ref].show_tcp == 0
+end
+
+local function UpdateTrack(track_ref, show_tcp, show_mcp)
+	local should_show = (marked_pinned_tracks[track_ref] and show_pinned)
+		or (focus_view and (focused_main_tracks[track_ref] or NoFocusedMainTracks()))
+		or not focus_view
+	all_snapshot[track_ref].show_tcp = show_tcp
+	all_snapshot[track_ref].show_mcp = show_mcp
+	if should_show then
+		ShowHideTrack(track_ref, 1)
+		reaper.TrackList_AdjustWindows(false)
+	end
+	SaveAllState()
+end
+
+local function SetNormal(track_ref)
+	UpdateTrack(track_ref, 1, 1)
+end
+
+local function SetTCPOnly(track_ref)
+	UpdateTrack(track_ref, 1, 0)
+end
+
+local function SetMCPOnly(track_ref)
+	UpdateTrack(track_ref, 0, 1)
+end
+
+local function SetArchived(track_ref)
+	all_snapshot[track_ref].show_tcp = 0
+	all_snapshot[track_ref].show_mcp = 0
+	focused_main_tracks[track_ref] = nil
+	marked_pinned_tracks[track_ref] = nil
+	ShowHideTrack(track_ref, 0)
+	-- TODO: FUNC / MAYBE -- offline FX, maybe lock?
+	SaveAllState()
+end
+
 local function RestoreAllState()
 	local save_after = false
 	for _, mt in ipairs(main_tracks) do
@@ -367,14 +392,43 @@ local function RestoreAllState()
 	UnsoloAll()
 end
 
+-- CONTEXT MENU
+local function GetTrackContextMenuId(track)
+	return "track" .. track.number .. "contextmenu"
+end
+
+local function RenderTrackListContextMenu(track)
+	ImGui.PushStyleColor(ctx, ImGui.Col_PopupBg, Darken(Theme_colors.bg2_color, 0.2))
+	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, Theme_colors.bg2_color)
+	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, Theme_colors.bg_color)
+	ImGui.PushStyleVar(ctx, ImGui.StyleVar_PopupRounding, ROUNDING)
+	if ImGui.BeginPopupContextItem(ctx, GetTrackContextMenuId(track)) then
+		if ImGui.MenuItem(ctx, "Set Normal", nil, nil, not IsNormal(track.track_ref)) then
+			SetNormal(track.track_ref)
+		end
+		if ImGui.MenuItem(ctx, "Set TCP-only", nil, nil, not IsTCPOnly(track.track_ref)) then
+			SetTCPOnly(track.track_ref)
+		end
+		if ImGui.MenuItem(ctx, "Set MCP-only", nil, nil, not IsMCPOnly(track.track_ref)) then
+			SetMCPOnly(track.track_ref)
+		end
+		if ImGui.MenuItem(ctx, "Set Hidden", nil, nil, not IsArchived(track.track_ref)) then
+			SetArchived(track.track_ref)
+		end
+		ImGui.EndPopup(ctx)
+	end
+	ImGui.PopStyleVar(ctx, 1)
+	ImGui.PopStyleColor(ctx, 3)
+end
+
 -- MAIN LIST
-local function TrackPrefix(track)
+local function TrackIndentString(track, include_folder)
 	local indent_str = string.rep("     ", track.depth)
-	-- local folder_str = ""
-	-- if track.is_folder then
-	-- 	folder_str = track.is_collapsed and "▸ " or "▾ "
-	-- end
-	return indent_str --.. folder_str
+	local folder_str = ""
+	if include_folder and track.is_folder then
+		folder_str = track.is_collapsed and "▸ " or "▾ "
+	end
+	return indent_str .. folder_str
 end
 
 local function IsEntrySelected(track, set)
@@ -636,6 +690,10 @@ local function RenderPinnedTrackTable()
 	for _, pt in ipairs(pinned_tracks) do
 		if PassesDisplayFilters(pt) then
 			ImGui.TableNextRow(ctx)
+
+			local pin_was_hovered = pin_buttons_hover_state[pt.track_ref] == true
+			local context_menu_open = ImGui.IsPopupOpen(ctx, GetTrackContextMenuId(pt))
+
 			if ImGui.TableSetColumnIndex(ctx, 0) then
 				RenderTrackNumberColumn(pt)
 			end
@@ -652,16 +710,23 @@ local function RenderPinnedTrackTable()
 					ImGui.PushFont(ctx, italic_font, ImGui.GetFontSize(ctx))
 				end
 
+				local selectable_flags = ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
+				if pin_was_hovered or context_menu_open then
+					selectable_flags = selectable_flags | ImGui.SelectableFlags_Highlight
+				end
+
 				if
 					ImGui.Selectable(
 						ctx,
-						TrackPrefix(pt) .. pt.name .. "##" .. pt.number,
+						TrackIndentString(pt, true) .. pt.name .. "##" .. pt.number,
 						IsPinnedRowHighlighted(pt),
-						ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
+						selectable_flags
 					)
 				then
 					HandlePinnedTrackClick(pt)
 				end
+
+				RenderTrackListContextMenu(pt) -- FIXME: no MCP-only?
 
 				if italic then
 					ImGui.PopFont(ctx)
@@ -693,7 +758,10 @@ local function RenderMainTrackTable()
 
 		if not parent_is_collapsed and PassesDisplayFilters(mt) then
 			ImGui.TableNextRow(ctx)
+
 			local pin_was_hovered = pin_buttons_hover_state[mt.track_ref] == true
+			local context_menu_open = ImGui.IsPopupOpen(ctx, GetTrackContextMenuId(mt))
+
 			if ImGui.TableSetColumnIndex(ctx, 0) then
 				RenderTrackNumberColumn(mt)
 			end
@@ -701,16 +769,14 @@ local function RenderMainTrackTable()
 				local is_button_hovered = false
 
 				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
-				ImGui.SetNextItemAllowOverlap(ctx) -- FIXME: NEXT -- do something like this for pinned tracks / add back folder icon
-				ImGui.Text(ctx, TrackPrefix(mt))
+				ImGui.SetNextItemAllowOverlap(ctx)
+				ImGui.Text(ctx, TrackIndentString(mt))
 
 				ImGui.SameLine(ctx)
 
 				if mt.is_folder then
 					ImGui.PushStyleColor(ctx, ImGui.Col_Button, TRANSPARENT) -- TODO: COSMETIC / MAYBE -- make it round?
 					ImGui.PushStyleColor(ctx, ImGui.Col_Border, TRANSPARENT)
-					-- ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, "")
-					-- ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, "")
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 1)
 					if ImGui.SmallButton(ctx, (mt.is_collapsed and "▸" or "▾") .. "##" .. mt.number) then
 						if mt.is_collapsed then
@@ -728,10 +794,11 @@ local function RenderMainTrackTable()
 				end
 
 				local selectable_flags = ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
-				if is_button_hovered or pin_was_hovered then
+				if is_button_hovered or pin_was_hovered or context_menu_open then
 					selectable_flags = selectable_flags | ImGui.SelectableFlags_Highlight
 				end
 
+				-- TODO: COSMETIC -- if hidden, italic dim. if tcp- or mcp-only some kind of symbol?
 				if
 					ImGui.Selectable(
 						ctx,
@@ -747,6 +814,8 @@ local function RenderMainTrackTable()
 					end
 				end
 
+				RenderTrackListContextMenu(mt)
+
 				ImGui.PopStyleVar(ctx, 1)
 			end
 			-- if ImGui.TableSetColumnIndex(ctx, 2) then RenderPinUnpinButtonColumn(false, mt) end
@@ -760,6 +829,37 @@ local function RenderMainTrackTable()
 	end
 	ImGui.PopStyleColor(ctx, 3)
 	ImGui.EndTable(ctx)
+end
+
+-- UI
+local function CaptureButton(width)
+	-- TODO: COSMETIC -- find better colors / icon
+	local label = "Capture ALL state"
+	if width then
+		label = "*"
+	end
+
+	if no_saved_data then -- red
+		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.red, 0.5))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Theme_colors.red)
+		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.red, 0.67))
+	else -- grey
+		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.bg2_color, 0.6))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Darken(Theme_colors.bg2_color, 0.1))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.bg2_color, 0.8))
+	end
+
+	if ImGui.Button(ctx, label, width or -FLT_MIN, 0) then
+		CaptureAllState(true)
+	end
+	ImGui.SetItemTooltip(
+		ctx,
+		no_saved_data
+				and "No saved data for this project yet.\nClick to capture current state as the default state (ALL).\nIf you have tracks that are shown in the TCP but not MCP (eg. MIDI only tracks), this will keep that intact"
+			or "Update default project state (ALL)"
+	)
+
+	ImGui.PopStyleColor(ctx, 3)
 end
 
 -- DATA INIT
@@ -845,9 +945,40 @@ local function CheckProjectChanged()
 	return project_changed
 end
 
+-- SHORTCUTS
+-- so clicking the UI won't lose sync with shortcuts
+local function SetFocusView(new_value)
+	focus_view = new_value
+	if not focus_view then
+		RestoreAllState()
+	end
+end
+
+-- so clicking the UI won't lose sync with shortcuts
+local function SetShowPinned(new_value)
+	show_pinned = new_value
+	HandleShowPinnedToggle()
+end
+
+local function HandleGlobalShortcuts()
+	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Key_A) then
+		RestoreAllState()
+	end
+	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Key_F) then
+		SetFocusView(not focus_view)
+	end
+	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Key_P) then
+		SetShowPinned(not show_pinned)
+	end
+	-- TODO: shortcut for capture
+	-- TODO: shortcut for show/hide MCP-only
+	-- TODO: shortcut for show/hide Archived
+	-- TODO: shortcut for Folder only
+end
+
 --==============================================================
 local function loop()
-	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 2)
+	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 3)
 	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 8)
 
 	ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, Theme_colors.bg_color)
@@ -863,7 +994,8 @@ local function loop()
 	ImGui.PopStyleColor(ctx, 5)
 
 	if visible then
-		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, 2)
+		-- HandleGlobalShortcuts()
+		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, 3)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 4, 2)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarRounding, 1)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize, 1)
@@ -908,6 +1040,12 @@ local function loop()
 			if ImGui.BeginTabItem(ctx, "Track list") then
 				--------------------------- WINDOW SIZING
 				local NUM_BELOW_ELEMENTS = 4 -- or 0 or 1 if not hide_options
+				if hide_options then
+					NUM_BELOW_ELEMENTS = NUM_BELOW_ELEMENTS - 3
+				end
+				if hide_all_button then
+					NUM_BELOW_ELEMENTS = NUM_BELOW_ELEMENTS - 1
+				end
 				local footer_height = ImGui.GetFrameHeightWithSpacing(ctx) * NUM_BELOW_ELEMENTS
 				local list_height = -footer_height
 
@@ -929,78 +1067,59 @@ local function loop()
 				end
 
 				--------------------------- MAIN BUTTONS
-				-- TODO: COSMETIC -- find better colors / icon
-				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
-				local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
-				local capture_button_width = 20
+				if not hide_all_button then
+					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
+					local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
+					local capture_button_width = 20
 
-				-- ALL BUTTON
-				if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
-					RestoreAllState()
-				end
-				ImGui.SetItemTooltip(
-					ctx,
-					"Restore saved default state.\nThis keeps tracks that are shown in the TCP but not MCP (eg. MIDI only tracks) intact."
-				)
-
-				ImGui.SameLine(ctx)
-
-				-- CAPTURE BUTTON
-				-- TODO: COSMETIC -- find better colors / icon
-				if no_saved_data then -- red
-					ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.red, 0.5))
-					ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Theme_colors.red)
-					ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.red, 0.67))
-				else -- grey
-					ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.bg2_color, 0.6))
-					ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Darken(Theme_colors.bg2_color, 0.1))
-					ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.bg2_color, 0.8))
-				end
-
-				if ImGui.Button(ctx, "*", capture_button_width, 0) then
-					CaptureAllState(true)
-				end
-				ImGui.SetItemTooltip(
-					ctx,
-					no_saved_data
-							and "No saved data for this project yet.\nClick to capture current state as the default state (ALL).\nIf you have tracks that are shown in the TCP but not MCP (eg. MIDI only tracks), this will keep that intact"
-						or "Update default project state (ALL)"
-				)
-
-				ImGui.PopStyleColor(ctx, 3)
-				ImGui.PopStyleVar(ctx, 1)
-
-				------------------------------ OPTIONS CHECKBOXES
-				-- if not hide_options then
-				-- FOCUS VIEW
-				local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
-				if focus_changed then
-					focus_view = focus_new
-					if not focus_view then
+					-- TODO: COSMETIC -- find better colors / icon
+					-- ALL BUTTON
+					if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
 						RestoreAllState()
 					end
-				end
-				ImGui.SetItemTooltip(ctx, "Show only selected tracks in Arrange view and Mixer")
+					ImGui.SetItemTooltip(
+						ctx,
+						"Restore saved default state.\nThis keeps tracks that are shown in the TCP but not MCP (eg. MIDI only tracks) intact."
+					)
 
-				-- SOLO SELECTED
-				-- TODO: COSMETIC -- label text red when enabled, and checkmark?
-				local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
-				if solo_selected_change then
-					solo_selected = solo_selected_new
-					if not solo_selected_new then
-						UnsoloAll()
+					ImGui.SameLine(ctx)
+
+					-- CAPTURE BUTTON
+					CaptureButton(capture_button_width)
+					ImGui.PopStyleVar(ctx, 1)
+				end
+
+				------------------------------ OPTIONS CHECKBOXES
+				if not hide_options then
+					-- FOCUS VIEW
+					local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
+					if focus_changed then
+						focus_view = focus_new
+						if not focus_view then
+							RestoreAllState()
+						end
 					end
-				end
-				ImGui.SetItemTooltip(ctx, "Exclusively solo selected tracks")
+					ImGui.SetItemTooltip(ctx, "Show only selected tracks in Arrange view and Mixer")
 
-				-- Show PINNED
-				local show_pinned_change, show_pinned_new = ImGui.Checkbox(ctx, "Show pinned tracks", show_pinned)
-				if show_pinned_change then
-					show_pinned = show_pinned_new
-					HandleShowPinnedToggle()
+					-- SOLO SELECTED
+					-- TODO: COSMETIC -- label text red when enabled, and checkmark?
+					local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
+					if solo_selected_change then
+						solo_selected = solo_selected_new
+						if not solo_selected_new then
+							UnsoloAll()
+						end
+					end
+					ImGui.SetItemTooltip(ctx, "Exclusively solo selected tracks")
+
+					-- Show PINNED
+					local show_pinned_change, show_pinned_new = ImGui.Checkbox(ctx, "Show pinned tracks", show_pinned)
+					if show_pinned_change then
+						show_pinned = show_pinned_new
+						HandleShowPinnedToggle()
+					end
+					ImGui.SetItemTooltip(ctx, "Show pinned tracks marked for visibility")
 				end
-				ImGui.SetItemTooltip(ctx, "Show pinned tracks marked for visibility")
-				-- end
 
 				ImGui.PopStyleColor(ctx, 1)
 
@@ -1008,7 +1127,7 @@ local function loop()
 			end -- tab item
 			------------------------------- OPTIONS TAB
 			if ImGui.BeginTabItem(ctx, "Options") then
-				-- separator with title: List options
+				ImGui.SeparatorText(ctx, "List")
 
 				-- SHOW MCP-only
 				local show_mcp_only_tracks_change, show_mcp_only_tracks_new =
@@ -1037,13 +1156,32 @@ local function loop()
 				end
 				ImGui.SetItemTooltip(ctx, "Show only folder parents in track list")
 
-				-- Separator: UI options
+				ImGui.SeparatorText(ctx, "UI")
 
 				-- SHOW/HIDE OPTIONS
-				-- TODO: OPTION -- change to checkbox, move to options tab.
-				-- TODO: OPTION -- show/hide ALL/CAPTURE button, if not: show CAPTURE here
+				local hide_options_change, hide_options_new =
+					ImGui.Checkbox(ctx, "Hide options in track list", hide_options)
+				if hide_options_change then
+					hide_options = hide_options_new
+					SaveBoolState("hide_options", hide_options)
+				end
+				-- TODO: Tooltip: Show or hide 'Focus view', 'Solo' and 'Show pinned tracks' checkboxes in the track list tab
 
-				ImGui.Spacing(ctx)
+				-- SHOW/HIDE ALL BUTTON and CAPTURE
+				local hide_all_button_change, hide_all_button_new =
+					ImGui.Checkbox(ctx, "Hide ALL button in track list", hide_all_button)
+				if hide_all_button_change then
+					hide_all_button = hide_all_button_new
+					SaveBoolState("hide_all_button", hide_all_button)
+				end
+				-- TODO: Tooltip: Show or hide ALL and Capture ("*") buttons in the track list tab. Capture button will appear here instead.
+				if hide_all_button then
+					-- CAPTURE BUTTON
+					CaptureButton()
+				end
+
+				-- ImGui.Spacing(ctx)
+				ImGui.SeparatorText(ctx, "Theme")
 
 				if ImGui.Button(ctx, "Adapt to current theme", -FLT_MIN) then
 					CaptureCurrentTheme()
@@ -1071,7 +1209,8 @@ local function Init()
 	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
 	show_hidden_tracks = LoadBoolState("show_hidden_tracks", show_hidden_tracks)
 	only_folder_parents = LoadBoolState("only_folder_parents", only_folder_parents)
-
+	hide_options = LoadBoolState("hide_options", hide_options)
+	hide_all_button = LoadBoolState("hide_all_button", hide_all_button)
 	InitProject()
 end
 
