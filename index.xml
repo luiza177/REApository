@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="38c1fd3f39d1c2cf55af2035b981ec945d572556">
+<index version="1" name="Luiza177's REApository" commit="cf2e58e655c34c0cd5c4ef064761f1686298adb0">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -108,10 +108,8 @@
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Alt/Opt click or turn on Solo mode for soloing\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Adapts to your theme It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim. And, of course, add some bells and whistles.\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 (Current?) Limitations:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No click-and-drag to select\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No toggling folder states\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No click-and-drag to select\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Roadmap:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab expand/collapse folders\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab keyboard navigation\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab allow drag-select\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab search + shortcuts\par}
@@ -194,6 +192,20 @@
       <version name="0.3.2" author="Luiza177" time="2026-09-08T14:11:07Z">
         <changelog><![CDATA[- Clicking folder icons now expand/collapses folder tracks]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/5f3d5a0f50fb32c1ef0816b28bd35c28d9999716/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.3.3" author="Luiza177" time="2026-09-10T10:00:19Z">
+        <changelog><![CDATA[- Added right-click context menu for setting tracks as MCP- or TCP-only or hiding them
+- Added options for show/hiding the option checkboxes and ALL/capture button in the track list tab
+- Ctrl+Shift click now untoggles folder children when clicking a focused folder parent again
+- Added basic shortcuts for all options:
+    - restore all/default state (ctrl+A)
+    - Toggle focus mode (ctrl+F)
+    - Toggle show pinned tracks (ctrl+P)
+    - Toggle solo mode (shift+alt+S)
+    - Toggle show MCP-only tracks in list (shift+alt+M)
+    - Toggle show hidden tracks in list (shift+alt+H)
+    - Toggle show only folder parents (shift+alt+F)]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/cf2e58e655c34c0cd5c4ef064761f1686298adb0/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
