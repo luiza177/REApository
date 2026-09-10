@@ -25,10 +25,17 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---*   - Added right-click context menu for setting tracks as MCP- or TCP-only or hiding them
---*   - Added options for show/hiding the option checkboxes and ALL/capture button in the track list tab
---!   - Added option to always untoggle folder children when clicking a parent again
---!   - Added shortcuts for restoring all/default state (ctrl+A), focus mode (ctrl+f), show pinned tracks (ctrl+p).
+--   - Added right-click context menu for setting tracks as MCP- or TCP-only or hiding them
+--   - Added options for show/hiding the option checkboxes and ALL/capture button in the track list tab
+--   - Ctrl+Shift click now untoggles folder children when clicking a focused folder parent again
+--   - Added basic shortcuts for all options:
+--       - restore all/default state (ctrl+A)
+--       - Toggle focus mode (ctrl+F)
+--       - Toggle show pinned tracks (ctrl+P)
+--       - Toggle solo mode (shift+alt+S)
+--       - Toggle show MCP-only tracks in list (shift+alt+M)
+--       - Toggle show hidden tracks in list (shift+alt+H)
+--       - Toggle show only folder parents (shift+alt+F)
 -- @provides
 --   [main] .
 
@@ -195,7 +202,7 @@ end
 ---------------------------------------------------------------------------
 -- COLOR AND THEME METHODS
 local TRANSPARENT = 0x00000000
-local ROUNDING = 3 -- TODO: apply
+local ROUNDING = 3
 
 local function SetAlpha(color, alpha)
 	-- alpha: 0.0 (fully transparent) to 1.0 (fully opaque)
@@ -313,6 +320,23 @@ local function ShowHideTrack(track_ref, show)
 	return has_data
 end
 
+local function RestoreAllState()
+	local save_after = false
+	for _, mt in ipairs(main_tracks) do
+		local loaded = ShowHideTrack(mt.track_ref, true)
+		if not loaded then
+			save_after = true
+		end
+	end
+	if save_after then -- TODO: ** -- econsider if this should save
+		SaveAllState()
+	end
+	reaper.TrackList_AdjustWindows(false) -- actually show changes
+	focused_main_tracks = {}
+	UnsoloAll()
+end
+
+----- GET TRACK STATES
 local function IsNormal(track_ref)
 	if not all_snapshot[track_ref] then
 		return false
@@ -341,6 +365,7 @@ local function IsArchived(track_ref)
 	return all_snapshot[track_ref].show_mcp == 0 and all_snapshot[track_ref].show_tcp == 0
 end
 
+----- SET TRACK STATES
 local function UpdateTrack(track_ref, show_tcp, show_mcp)
 	local should_show = (marked_pinned_tracks[track_ref] and show_pinned)
 		or (focus_view and (focused_main_tracks[track_ref] or NoFocusedMainTracks()))
@@ -374,22 +399,9 @@ local function SetArchived(track_ref)
 	ShowHideTrack(track_ref, 0)
 	-- TODO: FUNC / MAYBE -- offline FX, maybe lock?
 	SaveAllState()
-end
-
-local function RestoreAllState()
-	local save_after = false
-	for _, mt in ipairs(main_tracks) do
-		local loaded = ShowHideTrack(mt.track_ref, true)
-		if not loaded then
-			save_after = true
-		end
+	if NoFocusedMainTracks() then
+		RestoreAllState()
 	end
-	if save_after then -- TODO: ** -- econsider if this should save
-		SaveAllState()
-	end
-	reaper.TrackList_AdjustWindows(false) -- actually show changes
-	focused_main_tracks = {}
-	UnsoloAll()
 end
 
 -- CONTEXT MENU
@@ -506,6 +518,7 @@ local function HandleMainTrackClick(track)
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
 	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
 	local should_solo = alt_held or solo_selected
+	local shift_held = (mods & ImGui.Mod_Shift) ~= 0
 
 	if last_alt_click and not alt_held then
 		UnsoloAll()
@@ -514,8 +527,7 @@ local function HandleMainTrackClick(track)
 	if ctrl_held then -- multi-select
 		if focused_main_tracks[track.track_ref] then -- already selected
 			focused_main_tracks[track.track_ref] = nil -- unselect it
-			-- TODO: OPTION -- optionally always untoggle children
-			if only_folder_parents and track.is_folder then
+			if (only_folder_parents or shift_held) and track.is_folder then
 				ToggleFolderChildren(track, focused_main_tracks, false)
 			end -- and unselect children, if folder and only parents
 		else
@@ -946,7 +958,6 @@ local function CheckProjectChanged()
 end
 
 -- SHORTCUTS
--- so clicking the UI won't lose sync with shortcuts
 local function SetFocusView(new_value)
 	focus_view = new_value
 	if not focus_view then
@@ -954,31 +965,67 @@ local function SetFocusView(new_value)
 	end
 end
 
--- so clicking the UI won't lose sync with shortcuts
+local function SetSoloMode(new_value)
+	solo_selected = new_value
+	if not solo_selected then
+		UnsoloAll()
+	end
+end
+
 local function SetShowPinned(new_value)
 	show_pinned = new_value
 	HandleShowPinnedToggle()
+end
+
+local function SetShowHideMCPOnly(new_value)
+	show_mcp_only_tracks = new_value
+	SaveBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
+end
+
+local function SetShowHideArchived(new_value)
+	show_hidden_tracks = new_value
+	SaveBoolState("show_hidden_tracks", show_hidden_tracks)
+end
+
+local function SetShowFoldersOnly(new_value)
+	only_folder_parents = new_value
+	SaveBoolState("only_folder_parents", only_folder_parents)
 end
 
 local function HandleGlobalShortcuts()
 	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Key_A) then
 		RestoreAllState()
 	end
+	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Mod_Alt | ImGui.Key_A) then
+		CaptureAllState(true)
+	end
 	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Key_F) then
 		SetFocusView(not focus_view)
+	end
+	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_S) then
+		SetSoloMode(not solo_selected)
 	end
 	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Key_P) then
 		SetShowPinned(not show_pinned)
 	end
-	-- TODO: shortcut for capture
-	-- TODO: shortcut for show/hide MCP-only
-	-- TODO: shortcut for show/hide Archived
-	-- TODO: shortcut for Folder only
+	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_M) then
+		SetShowHideMCPOnly(not show_mcp_only_tracks)
+	end
+	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_H) then
+		SetShowHideArchived(not show_hidden_tracks)
+	end
+	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_F) then
+		SetShowFoldersOnly(not only_folder_parents)
+	end
+	-- TODO: shortcut for toggle tabs
+	-- TODO: list navigation
 end
+
+-- TODO: FUNC / ACTION - toggle show MCP-only track(s) in TCP
 
 --==============================================================
 local function loop()
-	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 3)
+	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, ROUNDING)
 	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 8)
 
 	ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, Theme_colors.bg_color)
@@ -994,10 +1041,10 @@ local function loop()
 	ImGui.PopStyleColor(ctx, 5)
 
 	if visible then
-		-- HandleGlobalShortcuts()
-		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, 3)
+		HandleGlobalShortcuts()
+		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, ROUNDING)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 4, 2)
-		ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarRounding, 1)
+		ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarRounding, ROUNDING)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize, 1)
 
 		local mode_color = focus_view and Lighten(Theme_colors.primary_color, 0.1) or Theme_colors.primary_color
@@ -1094,10 +1141,7 @@ local function loop()
 					-- FOCUS VIEW
 					local focus_changed, focus_new = ImGui.Checkbox(ctx, "Focus view", focus_view)
 					if focus_changed then
-						focus_view = focus_new
-						if not focus_view then
-							RestoreAllState()
-						end
+						SetFocusView(focus_new)
 					end
 					ImGui.SetItemTooltip(ctx, "Show only selected tracks in Arrange view and Mixer")
 
@@ -1105,18 +1149,14 @@ local function loop()
 					-- TODO: COSMETIC -- label text red when enabled, and checkmark?
 					local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
 					if solo_selected_change then
-						solo_selected = solo_selected_new
-						if not solo_selected_new then
-							UnsoloAll()
-						end
+						SetSoloMode(solo_selected_new)
 					end
 					ImGui.SetItemTooltip(ctx, "Exclusively solo selected tracks")
 
 					-- Show PINNED
 					local show_pinned_change, show_pinned_new = ImGui.Checkbox(ctx, "Show pinned tracks", show_pinned)
 					if show_pinned_change then
-						show_pinned = show_pinned_new
-						HandleShowPinnedToggle()
+						SetShowPinned(show_pinned_new)
 					end
 					ImGui.SetItemTooltip(ctx, "Show pinned tracks marked for visibility")
 				end
@@ -1133,8 +1173,7 @@ local function loop()
 				local show_mcp_only_tracks_change, show_mcp_only_tracks_new =
 					ImGui.Checkbox(ctx, "Show MCP-only", show_mcp_only_tracks)
 				if show_mcp_only_tracks_change then
-					show_mcp_only_tracks = show_mcp_only_tracks_new
-					SaveBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
+					SetShowHideMCPOnly(show_mcp_only_tracks_new)
 				end
 				ImGui.SetItemTooltip(ctx, "Show tracks with only the MCP (eg. FX return tracks) in the track list")
 
@@ -1142,8 +1181,7 @@ local function loop()
 				local show_hidden_tracks_change, show_hidden_tracks_new =
 					ImGui.Checkbox(ctx, "Show hidden", show_hidden_tracks)
 				if show_hidden_tracks_change then
-					show_hidden_tracks = show_hidden_tracks_new
-					SaveBoolState("show_hidden_tracks", show_hidden_tracks)
+					SetShowHideArchived(show_hidden_tracks_new)
 				end
 				ImGui.SetItemTooltip(ctx, "Show hidden tracks in track list")
 
@@ -1151,8 +1189,7 @@ local function loop()
 				local only_folder_parents_change, only_folders_parents_new =
 					ImGui.Checkbox(ctx, "Only folders", only_folder_parents)
 				if only_folder_parents_change then
-					only_folder_parents = only_folders_parents_new
-					SaveBoolState("only_folder_parents", only_folder_parents)
+					SetShowFoldersOnly(only_folders_parents_new)
 				end
 				ImGui.SetItemTooltip(ctx, "Show only folder parents in track list")
 
@@ -1165,7 +1202,10 @@ local function loop()
 					hide_options = hide_options_new
 					SaveBoolState("hide_options", hide_options)
 				end
-				-- TODO: Tooltip: Show or hide 'Focus view', 'Solo' and 'Show pinned tracks' checkboxes in the track list tab
+				ImGui.SetItemTooltip(
+					ctx,
+					"Show or hide 'Focus view', 'Solo' and 'Show pinned tracks' checkboxes in the track list tab"
+				)
 
 				-- SHOW/HIDE ALL BUTTON and CAPTURE
 				local hide_all_button_change, hide_all_button_new =
@@ -1174,11 +1214,14 @@ local function loop()
 					hide_all_button = hide_all_button_new
 					SaveBoolState("hide_all_button", hide_all_button)
 				end
-				-- TODO: Tooltip: Show or hide ALL and Capture ("*") buttons in the track list tab. Capture button will appear here instead.
 				if hide_all_button then
 					-- CAPTURE BUTTON
 					CaptureButton()
 				end
+				ImGui.SetItemTooltip(
+					ctx,
+					"Show or hide ALL and Capture ('*') buttons in the track list tab.\nCapture button will appear here instead"
+				)
 
 				-- ImGui.Spacing(ctx)
 				ImGui.SeparatorText(ctx, "Theme")
