@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.3.3
+-- @version 0.3.4
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -25,17 +25,15 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Added right-click context menu for setting tracks as MCP- or TCP-only or hiding them
---   - Added options for show/hiding the option checkboxes and ALL/capture button in the track list tab
---   - Ctrl+Shift click now untoggles folder children when clicking a focused folder parent again
---   - Added basic shortcuts for all options:
---       - restore all/default state (ctrl+A)
---       - Toggle focus mode (ctrl+F)
---       - Toggle show pinned tracks (ctrl+P)
---       - Toggle solo mode (shift+alt+S)
---       - Toggle show MCP-only tracks in list (shift+alt+M)
---       - Toggle show hidden tracks in list (shift+alt+H)
---       - Toggle show only folder parents (shift+alt+F)
+--   - Added option to always start a project in 'Focus view' mode
+--   - Added placeholder suffix for TCP-only (T), MCP-only (M), and hidden (H) tracks
+--   - Made expand/collapse folder buttons bigger
+--   - Added project ALL state reset
+--   - Fixed pinned tracks highlighted when selected when focus mode is on
+--   - Fixed Unsolo behavior in nav mode
+--   - Fixed table column slide when largest track number adds/removes a digit
+--   - Fixed main table scrolling
+--   - Fixed issue where a newly pinned track appears as unmarked
 -- @provides
 --   [main] .
 
@@ -52,6 +50,9 @@ local ext_name = "luiza177.TrackCompass"
 
 local italic_font = ImGui.CreateFont("sans-serif", ImGui.FontFlags_Italic)
 ImGui.Attach(ctx, italic_font)
+
+-- Q: Alternative workflow: single click selects, double-click focuses
+-- TODO: FUNC / MAYBE -- SWS track size on focus
 
 -- GLOBALS -----------------------------------------------------------------
 local all_snapshot = {}
@@ -77,7 +78,7 @@ local show_pinned = true
 local show_mcp_only_tracks = true
 local show_hidden_tracks = false
 local only_folder_parents = false
--- local always_unselect_children = false
+local default_to_focus_mode = false
 
 ---------------------------------------------------------------------------
 -- CONFIG VARS
@@ -104,6 +105,12 @@ local function GetTrackName(track, i)
 		name = "Track " .. i + 1
 	end
 	return name
+end
+
+local function IsVisible(track_ref)
+	local tcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP")
+	local mcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER")
+	return tcp == 1 or mcp == 1
 end
 
 local function GatherAllTrackInfo()
@@ -139,6 +146,9 @@ local function GatherAllTrackInfo()
 
 		local is_pinned = reaper.GetMediaTrackInfo_Value(track_ref, "B_TCPPIN") == 1
 		if is_pinned then
+			if IsVisible(track_ref) then
+				marked_pinned_tracks[track_ref] = true
+			end
 			pinned_tracks[#pinned_tracks + 1] = track_info
 		else
 			main_tracks[#main_tracks + 1] = track_info
@@ -175,12 +185,6 @@ end
 
 local function IsMarkedForVisibility(pinned_track_ref)
 	return marked_pinned_tracks[pinned_track_ref] == true
-end
-
-local function IsVisible(track)
-	local tcp = reaper.GetMediaTrackInfo_Value(track.track_ref, "B_SHOWINTCP")
-	local mcp = reaper.GetMediaTrackInfo_Value(track.track_ref, "B_SHOWINMIXER")
-	return tcp == 1 or mcp == 1
 end
 
 local function CountKeys(t)
@@ -243,25 +247,30 @@ local function ToImGuiColor(color)
 	return (converted << 8 | 0xFF)
 end
 
+local function GetReadableTextColor(bg_color, light_color, dark_color) --? how to use this? apply tint and genral brightness from other theme elements? different for general text vs buttons/tabs?
+	--? if theme text too dark/light invert (keeping tint?)
+end
+
 local function CaptureCurrentTheme()
 	Theme_colors = {}
 	local bg_color = reaper.GetThemeColor("col_main_bg2", 0) -- or col_main_bg, col_main_bg2, windowtab_bg
 	local bg2_color = reaper.GetThemeColor("col_tracklistbg", 0) -- or genlist_bg, col_tracklistbg
-	local primary_color = reaper.GetThemeColor("genlist_selbg", 0) -- or col_toolbar_text_on, genlist_selbg, col_cursor
-	local secondary_color = reaper.GetThemeColor("playcursor_color", 0)
-	-- local text_color = reaper.GetThemeColor("col_tcp_text", 0) -- TODO: COSMETIC -- find better text color
-	local text_color = 0xFFFFFFFF
-	-- local automation_recording = reaper.GetThemeColor("col_fadearm", 0)
+	-- local accent_color = reaper.GetThemeColor("col_toolbar_text_on", 0) -- or col_toolbar_text_on, genlist_selbg, col_cursor
+	local accent_color = reaper.GetThemeColor("genlist_selbg", 0) -- or col_toolbar_text_on, genlist_selbg, col_cursor
+	local alternative_color = reaper.GetThemeColor("playcursor_color", 0)
+	local text_color = reaper.GetThemeColor("col_tcp_textsel", 0)
+	-- local button_text_color = text_color -- against accent_color
 	local red = 0xFD4F4FFF -- TODO: COSMETIC -- find a way to derive red from theme
+	--? take the accent_color and rotates the hue until red? if already red then green... but then is it bright enough?
+
+	--? if bg and bg2 are the same, then darken or lighten bg2?
 
 	Theme_colors = {
 		bg_color = ToImGuiColor(bg_color),
 		bg2_color = ToImGuiColor(bg2_color),
-		primary_color = ToImGuiColor(primary_color),
-		secondary_color = ToImGuiColor(secondary_color),
-		-- text_color = ToImGuiColor(text_color),
-		text_color = text_color,
-		-- automation_recording = ToImGuiColor(automation_recording),
+		accent_color = ToImGuiColor(accent_color),
+		alternative_color = ToImGuiColor(alternative_color),
+		text_color = ToImGuiColor(text_color),
 		red = red,
 	}
 end
@@ -434,8 +443,9 @@ local function RenderTrackListContextMenu(track)
 end
 
 -- MAIN LIST
-local function TrackIndentString(track, include_folder)
-	local indent_str = string.rep("     ", track.depth)
+
+local function TrackIndentString(track, include_folder) -- FIXME: replace with Indent / StyleVar_IndentSpacing ?
+	local indent_str = string.rep("      ", track.depth)
 	local folder_str = ""
 	if include_folder and track.is_folder then
 		folder_str = track.is_collapsed and "▸ " or "▾ "
@@ -584,13 +594,11 @@ local function HandleShowPinnedToggle()
 	ApplyPinnedTrackVisibility()
 end
 
-local function HandleNavClick(track) -- TODO: FUNC -- if already soloed? unsolo
+local function HandleNavClick(track)
 	local mods = ImGui.GetKeyMods(ctx)
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
 	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
 	local should_solo = alt_held or solo_selected
-	-- local already_soloed = false
-	-- if should_solo then already_soloed = IsSoloed(track.track_ref) end
 
 	if ctrl_held then -- multi-select
 		if reaper.IsTrackSelected(track.track_ref) then
@@ -598,14 +606,18 @@ local function HandleNavClick(track) -- TODO: FUNC -- if already soloed? unsolo
 		else
 			reaper.SetTrackSelected(track.track_ref, true)
 		end
+		last_main_click_ref = nil
 	else -- single select
-		reaper.SetOnlyTrackSelected(track.track_ref)
+		if track.track_ref == last_main_click_ref then
+			reaper.SetTrackSelected(track.track_ref, false)
+			last_main_click_ref = nil
+		else
+			reaper.SetOnlyTrackSelected(track.track_ref)
+			last_main_click_ref = track.track_ref
+		end
 	end
 
-	-- if should_solo and already_soloed then
-	-- 	SetSolo(track.track_ref, false)
 	if should_solo then
-		-- elseif should_solo then
 		SoloExclusive()
 	end
 
@@ -616,7 +628,9 @@ end
 -- RENDER TABLES
 -- Q: EDGE CASE when folder parent is pinned, but children are not (REAPER behavior) --> collapse in main somehow?
 local function SetupTrackListTableColumns()
-	ImGui.TableSetupColumn(ctx, "Track #", ImGui.TableColumnFlags_WidthFixed)
+	local num_tracks = reaper.CountTracks(0)
+	local text_width = ImGui.CalcTextSize(ctx, tostring(num_tracks), nil, nil)
+	ImGui.TableSetupColumn(ctx, "Track #", ImGui.TableColumnFlags_WidthFixed, text_width)
 	ImGui.TableSetupColumn(ctx, "Name", ImGui.TableColumnFlags_WidthStretch)
 	-- ImGui.TableSetupColumn(ctx, "Pin/Unpin", ImGui.TableColumnFlags_WidthFixed)
 end
@@ -635,9 +649,9 @@ local function RenderPinUnpinButtonColumn(unpin, track)
 	ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, TRANSPARENT)
 	ImGui.PushStyleColor(ctx, ImGui.Col_Border, TRANSPARENT)
 
-	local main_color = unpin and Theme_colors.red or Theme_colors.primary_color
+	local main_color = unpin and Theme_colors.red or Theme_colors.accent_color
 	local was_hovered = pin_buttons_hover_state[track.track_ref] == true
-	local color = was_hovered and 0xFFFFFFFF or Lighten(main_color, 0.1)
+	local color = was_hovered and Theme_colors.text_color or Lighten(main_color, 0.1)
 	ImGui.PushStyleColor(ctx, ImGui.Col_Text, color)
 
 	if ImGui.SmallButton(ctx, (unpin and "x" or "o") .. "##" .. track.number) then
@@ -656,6 +670,7 @@ local function RenderPinUnpinButtonColumn(unpin, track)
 	return was_hovered
 end
 
+-- TODO: COSMETIC / MAYBE -- highlight grey if selected, highlight blue if focus mode hover or focused
 local function GetPinnedTrackVisibilityState(pt)
 	if IsMarkedForVisibility(pt.track_ref) then
 		if show_pinned then
@@ -681,7 +696,7 @@ end
 local function GetPinnedHighlightColor(pt)
 	local state = GetPinnedTrackVisibilityState(pt)
 	if focus_view and state == "showing" and not NoFocusedMainTracks() then
-		return Theme_colors.secondary_color -- normal mode highlight
+		return Theme_colors.alternative_color -- normal mode highlight
 	end
 	return Lighten(Theme_colors.bg_color, 0.2) -- neutral grey highlight
 end
@@ -690,7 +705,7 @@ local function IsPinnedRowHighlighted(pt)
 	if focus_view and not NoFocusedMainTracks() then
 		return GetPinnedTrackVisibilityState(pt) ~= "excluded"
 	end
-	return reaper.IsTrackSelected(pt.track_ref)
+	return not focus_view and reaper.IsTrackSelected(pt.track_ref)
 end
 
 local function RenderPinnedTrackTable()
@@ -727,10 +742,21 @@ local function RenderPinnedTrackTable()
 					selectable_flags = selectable_flags | ImGui.SelectableFlags_Highlight
 				end
 
+				local suffix = ""
+				if IsMCPOnly(pt.track_ref) then
+					suffix = " (M)"
+				end
+				if IsTCPOnly(pt.track_ref) then
+					suffix = " (T)"
+				end
+				if IsArchived(pt.track_ref) then
+					suffix = " (H)"
+				end
+
 				if
 					ImGui.Selectable(
 						ctx,
-						TrackIndentString(pt, true) .. pt.name .. "##" .. pt.number,
+						TrackIndentString(pt, true) .. pt.name .. suffix .. "##" .. pt.number,
 						IsPinnedRowHighlighted(pt),
 						selectable_flags
 					)
@@ -753,12 +779,12 @@ local function RenderPinnedTrackTable()
 end
 
 local function RenderMainTrackTable()
-	if not ImGui.BeginTable(ctx, "##maintracklist", 2, nil) then
+	if not ImGui.BeginTable(ctx, "##maintracklist", 2, ImGui.TableFlags_ScrollY) then
 		return
 	end
 	SetupTrackListTableColumns()
 
-	local mode_color = focus_view and Theme_colors.primary_color or Lighten(Theme_colors.bg_color, 0.2)
+	local mode_color = focus_view and Theme_colors.accent_color or Lighten(Theme_colors.bg_color, 0.2)
 	ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(mode_color, 0.25))
 	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(mode_color, 0.45))
 	ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(mode_color, 0.35))
@@ -780,17 +806,18 @@ local function RenderMainTrackTable()
 			if ImGui.TableSetColumnIndex(ctx, 1) then
 				local is_button_hovered = false
 
-				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 2)
+				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 3)
 				ImGui.SetNextItemAllowOverlap(ctx)
 				ImGui.Text(ctx, TrackIndentString(mt))
 
 				ImGui.SameLine(ctx)
 
 				if mt.is_folder then
-					ImGui.PushStyleColor(ctx, ImGui.Col_Button, TRANSPARENT) -- TODO: COSMETIC / MAYBE -- make it round?
+					-- ImGui.PushStyleColor(ctx, ImGui.Col_Button, Theme_colors.bg_color)
+					ImGui.PushStyleColor(ctx, ImGui.Col_Button, TRANSPARENT)
 					ImGui.PushStyleColor(ctx, ImGui.Col_Border, TRANSPARENT)
-					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 1)
-					if ImGui.SmallButton(ctx, (mt.is_collapsed and "▸" or "▾") .. "##" .. mt.number) then
+					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 2)
+					if ImGui.SmallButton(ctx, (mt.is_collapsed and "⯈" or "⯆") .. "##" .. mt.number) then -- ▸▾ ⏷⏵
 						if mt.is_collapsed then
 							reaper.SetMediaTrackInfo_Value(mt.track_ref, "I_FOLDERCOMPACT", 0)
 						else
@@ -810,11 +837,22 @@ local function RenderMainTrackTable()
 					selectable_flags = selectable_flags | ImGui.SelectableFlags_Highlight
 				end
 
+				local suffix = ""
+				if IsMCPOnly(mt.track_ref) then
+					suffix = " (M)"
+				end
+				if IsTCPOnly(mt.track_ref) then
+					suffix = " (T)"
+				end
+				if IsArchived(mt.track_ref) then
+					suffix = " (H)"
+				end
+
 				-- TODO: COSMETIC -- if hidden, italic dim. if tcp- or mcp-only some kind of symbol?
 				if
 					ImGui.Selectable(
 						ctx,
-						mt.name .. "##" .. mt.number,
+						mt.name .. suffix .. "##" .. mt.number,
 						IsEntrySelected(mt, focused_main_tracks),
 						selectable_flags
 					)
@@ -875,6 +913,7 @@ local function CaptureButton(width)
 end
 
 -- DATA INIT
+
 local function InitAllState()
 	-- default all to show all
 	for i = 0, reaper.CountTracks(0) - 1 do
@@ -887,10 +926,20 @@ end
 local function InitPinnedTracks()
 	marked_pinned_tracks = {}
 	for _, pt in ipairs(pinned_tracks) do
-		if IsVisible(pt) then
+		if IsVisible(pt.track_ref) then
 			marked_pinned_tracks[pt.track_ref] = true
 		end
 	end
+end
+
+local function ResetAllStateAndShowAllTracks()
+	reaper.SetProjExtState(0, ext_name, "", "") -- clear existing data
+	all_snapshot = {}
+	focused_main_tracks = {}
+	InitPinnedTracks()
+	InitAllState()
+	RestoreAllState()
+	no_saved_data = true --?
 end
 
 local function LoadOrInitAllState()
@@ -937,7 +986,7 @@ local function InitFocusMode()
 
 	if #main_tracks - num_archived_tracks == CountKeys(focused_main_tracks) then -- actually in ALL state
 		focused_main_tracks = {}
-		focus_view = false -- TODO: OPTION* -- alternatively option to default to focus mode even if in ALL state: [needs if hide_options]
+		focus_view = default_to_focus_mode
 	end
 end
 
@@ -963,6 +1012,7 @@ local function SetFocusView(new_value)
 	if not focus_view then
 		RestoreAllState()
 	end
+	last_main_click_ref = nil
 end
 
 local function SetSoloMode(new_value)
@@ -993,6 +1043,13 @@ local function SetShowFoldersOnly(new_value)
 end
 
 local function HandleGlobalShortcuts()
+	-- FOCUS ARRANGE WINDOW --FIXME: needs warning on run if no SWS
+	if ImGui.IsKeyPressed(ctx, ImGui.Key_Escape) then
+		local cmd = reaper.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
+		if cmd ~= 0 then
+			reaper.Main_OnCommand(cmd, 0)
+		end
+	end
 	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Key_A) then
 		RestoreAllState()
 	end
@@ -1031,7 +1088,7 @@ local function loop()
 	ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, Theme_colors.bg_color)
 	ImGui.PushStyleColor(ctx, ImGui.Col_TitleBg, Theme_colors.bg_color)
 	ImGui.PushStyleColor(ctx, ImGui.Col_TitleBgActive, Theme_colors.bg2_color)
-	ImGui.PushStyleColor(ctx, ImGui.Col_DockingPreview, SetAlpha(Theme_colors.primary_color, 0.7))
+	ImGui.PushStyleColor(ctx, ImGui.Col_DockingPreview, SetAlpha(Theme_colors.accent_color, 0.7))
 	ImGui.PushStyleColor(ctx, ImGui.Col_DockingEmptyBg, Theme_colors.bg2_color)
 
 	local window_flags = ImGui.WindowFlags_NoCollapse
@@ -1047,17 +1104,17 @@ local function loop()
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarRounding, ROUNDING)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize, 1)
 
-		local mode_color = focus_view and Lighten(Theme_colors.primary_color, 0.1) or Theme_colors.primary_color
+		local mode_color = focus_view and Lighten(Theme_colors.accent_color, 0.1) or Theme_colors.accent_color
 
 		ImGui.PushStyleColor(ctx, ImGui.Col_TabHovered, SetAlpha(Lighten(Theme_colors.bg2_color, 0.15), 0.8))
 		ImGui.PushStyleColor(ctx, ImGui.Col_TabSelected, mode_color)
-		ImGui.PushStyleColor(ctx, ImGui.Col_TabSelectedOverline, Theme_colors.primary_color)
+		ImGui.PushStyleColor(ctx, ImGui.Col_TabSelectedOverline, Theme_colors.accent_color)
 		ImGui.PushStyleColor(ctx, ImGui.Col_Tab, SetAlpha(Theme_colors.bg2_color, 0.45))
 		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmed, SetAlpha(Darken(Theme_colors.bg2_color, 0.2), 0.98))
 		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelected, SetAlpha(Theme_colors.bg2_color, 0.3))
 		ImGui.PushStyleColor(ctx, ImGui.Col_TabDimmedSelectedOverline, TRANSPARENT)
 
-		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Lighten(Theme_colors.primary_color, 0.2), 0.2))
+		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Lighten(Theme_colors.accent_color, 0.2), 0.2))
 		ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Darken(mode_color, 0.2), 0.6))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Darken(mode_color, 0.1))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Darken(mode_color, 0.1), 0.67))
@@ -1066,17 +1123,13 @@ local function loop()
 		ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgHovered, SetAlpha(Theme_colors.bg2_color, 0.6))
 		ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, mode_color)
 		ImGui.PushStyleColor(ctx, ImGui.Col_Text, Theme_colors.text_color)
-		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGrip, SetAlpha(Theme_colors.primary_color, 0.2))
-		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGripActive, SetAlpha(Theme_colors.primary_color, 0.67))
-		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGripHovered, SetAlpha(Theme_colors.primary_color, 0.95))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGrip, SetAlpha(Theme_colors.accent_color, 0.2))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGripActive, SetAlpha(Theme_colors.accent_color, 0.67))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ResizeGripHovered, SetAlpha(Theme_colors.accent_color, 0.95))
 		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarBg, SetAlpha(Darken(Theme_colors.bg2_color, 0.15), 0.5))
-		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrab, SetAlpha(Theme_colors.primary_color, 0.5))
-		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabActive, SetAlpha(Theme_colors.primary_color, 0.7))
-		ImGui.PushStyleColor(
-			ctx,
-			ImGui.Col_ScrollbarGrabHovered,
-			SetAlpha(Lighten(Theme_colors.primary_color, 0.15), 1)
-		)
+		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrab, SetAlpha(Theme_colors.accent_color, 0.5))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabActive, SetAlpha(Theme_colors.accent_color, 0.7))
+		ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabHovered, SetAlpha(Lighten(Theme_colors.accent_color, 0.15), 1))
 
 		if ImGui.BeginTabBar(ctx, "##tabs") then
 			if CheckProjectChanged() then
@@ -1101,16 +1154,26 @@ local function loop()
 				----------------------------- LIST BOX / TABLE
 				ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg, SetAlpha(Theme_colors.bg2_color, 1)) -- list box, checkbox bg
 				-- -FLT_MIN = right align
+
+				if solo_selected then
+					ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Theme_colors.red, 0.5))
+				end
 				if ImGui.BeginChild(ctx, "##tracklist", -FLT_MIN, list_height, ImGui.ChildFlags_FrameStyle) then
 					GatherAllTrackInfo()
-					RenderPinnedTrackTable() --TODO: OPTION / MAYBE -- optionally display all pinned, scroll main
+					RenderPinnedTrackTable()
 					if next(pinned_tracks) ~= nil then
 						ImGui.Separator(ctx)
 					end
-					RenderMainTrackTable()
+
+					local main_height = ImGui.GetFrameHeightWithSpacing(ctx) * (#pinned_tracks + 1)
+					-- param: pinned + separator height
+					RenderMainTrackTable(main_height) -- FIXME: pinned tracks are fixed, main tracks scroll
 
 					-- TODO: FUNC -- at the bottom of Child, expand all, collapse all buttons
 					ImGui.EndChild(ctx)
+				end
+				if solo_selected then
+					ImGui.PopStyleColor(ctx, 1)
 				end
 
 				--------------------------- MAIN BUTTONS
@@ -1146,8 +1209,14 @@ local function loop()
 					ImGui.SetItemTooltip(ctx, "Show only selected tracks in Arrange view and Mixer")
 
 					-- SOLO SELECTED
-					-- TODO: COSMETIC -- label text red when enabled, and checkmark?
+					if solo_selected then
+						ImGui.PushStyleColor(ctx, ImGui.Col_Text, Theme_colors.red)
+						ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, Theme_colors.red)
+					end
 					local solo_selected_change, solo_selected_new = ImGui.Checkbox(ctx, "Solo", solo_selected)
+					if solo_selected then
+						ImGui.PopStyleColor(ctx, 2)
+					end
 					if solo_selected_change then
 						SetSoloMode(solo_selected_new)
 					end
@@ -1187,7 +1256,7 @@ local function loop()
 
 				-- ONLY SHOW FOLDERS
 				local only_folder_parents_change, only_folders_parents_new =
-					ImGui.Checkbox(ctx, "Only folders", only_folder_parents)
+					ImGui.Checkbox(ctx, "Only folders parents", only_folder_parents)
 				if only_folder_parents_change then
 					SetShowFoldersOnly(only_folders_parents_new)
 				end
@@ -1223,12 +1292,36 @@ local function loop()
 					"Show or hide ALL and Capture ('*') buttons in the track list tab.\nCapture button will appear here instead"
 				)
 
-				-- ImGui.Spacing(ctx)
-				ImGui.SeparatorText(ctx, "Theme")
+				ImGui.SeparatorText(ctx, "Preferences")
 
+				local default_to_focus_change, default_to_focus_new =
+					ImGui.Checkbox(ctx, "Default to Focus mode", default_to_focus_mode)
+				if default_to_focus_change then
+					default_to_focus_mode = default_to_focus_new
+					SaveBoolState("default_to_focus_mode", default_to_focus_mode)
+				end
+				ImGui.SetItemTooltip(
+					ctx,
+					"On project load, even if not in a focused state, default to starting in 'Focus view' mode"
+				)
+
+				ImGui.SeparatorText(ctx, "Theme")
+				-- CAPTURE THEME
 				if ImGui.Button(ctx, "Adapt to current theme", -FLT_MIN) then
 					CaptureCurrentTheme()
 				end
+
+				-- TODO: COSMETIC bottom of  window
+				ImGui.SeparatorText(ctx, "RESET")
+
+				ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.red, 0.5))
+				ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Theme_colors.red)
+				ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.red, 0.67))
+				if ImGui.Button(ctx, "Reset ALL state", -FLT_MIN) then
+					ResetAllStateAndShowAllTracks()
+				end
+				ImGui.SetItemTooltip(ctx, "Reset ALL state. All tracks should TCP and MCP, and are visible")
+				ImGui.PopStyleColor(ctx, 3)
 
 				ImGui.EndTabItem(ctx)
 			end
@@ -1249,6 +1342,7 @@ end
 
 local function Init()
 	CaptureCurrentTheme()
+	default_to_focus_mode = LoadBoolState("default_to_focus_mode", default_to_focus_mode)
 	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
 	show_hidden_tracks = LoadBoolState("show_hidden_tracks", show_hidden_tracks)
 	only_folder_parents = LoadBoolState("only_folder_parents", only_folder_parents)
