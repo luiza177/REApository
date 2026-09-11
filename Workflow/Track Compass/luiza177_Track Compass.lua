@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.3.4
+-- @version 0.3.5
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -25,15 +25,12 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Added option to always start a project in 'Focus view' mode
---   - Added placeholder suffix for TCP-only (T), MCP-only (M), and hidden (H) tracks
---   - Made expand/collapse folder buttons bigger
---   - Added project ALL state reset
---   - Fixed pinned tracks highlighted when selected when focus mode is on
---   - Fixed Unsolo behavior in nav mode
---   - Fixed table column slide when largest track number adds/removes a digit
---   - Fixed main table scrolling
---   - Fixed issue where a newly pinned track appears as unmarked
+--!   - Added pin/unpin button
+--!   - Hidden tracks appear greyed out on list
+--!   - Track state suffixes are now colored
+--!   - Added Expand all and Collapse all buttons
+--!   - Focus mode now adds a border to the list
+--!   - Scrollbar color changes with the mode
 -- @provides
 --   [main] .
 
@@ -152,6 +149,7 @@ local function GatherAllTrackInfo()
 			pinned_tracks[#pinned_tracks + 1] = track_info
 		else
 			main_tracks[#main_tracks + 1] = track_info
+			marked_pinned_tracks[track_ref] = nil
 		end
 
 		depth = depth + depth_change
@@ -731,6 +729,7 @@ local function RenderPinnedTrackTable()
 				ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(highlight_color, 0.25))
 				ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(highlight_color, 0.45))
 				ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(highlight_color, 0.35))
+				--? move to function and return number of pushes for popping later?
 
 				ImGui.PushStyleColor(ctx, ImGui.Col_Text, text_color)
 				if italic then
@@ -742,7 +741,7 @@ local function RenderPinnedTrackTable()
 					selectable_flags = selectable_flags | ImGui.SelectableFlags_Highlight
 				end
 
-				local suffix = ""
+				local suffix = "" -- TODO: extract / fix once down in main table
 				if IsMCPOnly(pt.track_ref) then
 					suffix = " (M)"
 				end
@@ -753,6 +752,7 @@ local function RenderPinnedTrackTable()
 					suffix = " (H)"
 				end
 
+				-- TODO: pull out trackindentstring like in main table??
 				if
 					ImGui.Selectable(
 						ctx,
@@ -806,17 +806,16 @@ local function RenderMainTrackTable()
 			if ImGui.TableSetColumnIndex(ctx, 1) then
 				local is_button_hovered = false
 
-				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 3)
+				ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 3) --? outside of loop?
 				ImGui.SetNextItemAllowOverlap(ctx)
-				ImGui.Text(ctx, TrackIndentString(mt))
+				ImGui.Text(ctx, TrackIndentString(mt)) --? replace with Indent?
 
 				ImGui.SameLine(ctx)
 
-				if mt.is_folder then
-					-- ImGui.PushStyleColor(ctx, ImGui.Col_Button, Theme_colors.bg_color)
-					ImGui.PushStyleColor(ctx, ImGui.Col_Button, TRANSPARENT)
-					ImGui.PushStyleColor(ctx, ImGui.Col_Border, TRANSPARENT)
-					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 2)
+				if mt.is_folder then -- TODO: extract folder expand/collase button as function, return is_hovered
+					ImGui.PushStyleColor(ctx, ImGui.Col_Button, TRANSPARENT) --? outside of loop
+					-- ImGui.PushStyleColor(ctx, ImGui.Col_Border, TRANSPARENT) --? outside of loop
+					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 2) --? outside of loop?
 					if ImGui.SmallButton(ctx, (mt.is_collapsed and "⯈" or "⯆") .. "##" .. mt.number) then -- ▸▾ ⏷⏵
 						if mt.is_collapsed then
 							reaper.SetMediaTrackInfo_Value(mt.track_ref, "I_FOLDERCOMPACT", 0)
@@ -827,8 +826,8 @@ local function RenderMainTrackTable()
 					if ImGui.IsItemHovered(ctx) then
 						is_button_hovered = true
 					end
-					ImGui.PopStyleVar(ctx, 1)
-					ImGui.PopStyleColor(ctx, 2)
+					ImGui.PopStyleVar(ctx, 1) --? outside of loop
+					ImGui.PopStyleColor(ctx, 1) --? outside of loop
 					ImGui.SameLine(ctx)
 				end
 
@@ -838,15 +837,21 @@ local function RenderMainTrackTable()
 				end
 
 				local suffix = ""
-				if IsMCPOnly(mt.track_ref) then
+				local suffix_text_color = SetAlpha(Theme_colors.text_color, 0.2)
+				local text_color = Theme_colors.text_color
+				if IsMCPOnly(mt.track_ref) then -- medium dim
 					suffix = " (M)"
+					text_color = SetAlpha(Theme_colors.text_color, 0.6)
 				end
-				if IsTCPOnly(mt.track_ref) then
+				if IsTCPOnly(mt.track_ref) then -- full opacity
 					suffix = " (T)"
 				end
-				if IsArchived(mt.track_ref) then
+				if IsArchived(mt.track_ref) then -- full dim
 					suffix = " (H)"
+					text_color = suffix_text_color
+					-- TODO: italic
 				end
+				-- TODO: extract variables for medium dim, full dim
 
 				-- TODO: COSMETIC -- if hidden, italic dim. if tcp- or mcp-only some kind of symbol?
 				if
@@ -866,7 +871,9 @@ local function RenderMainTrackTable()
 
 				RenderTrackListContextMenu(mt)
 
-				ImGui.PopStyleVar(ctx, 1)
+				--? same line, Colored Text? for suffix?
+
+				ImGui.PopStyleVar(ctx, 1) --? outside of loop
 			end
 			-- if ImGui.TableSetColumnIndex(ctx, 2) then RenderPinUnpinButtonColumn(false, mt) end
 		end
@@ -1165,9 +1172,7 @@ local function loop()
 						ImGui.Separator(ctx)
 					end
 
-					local main_height = ImGui.GetFrameHeightWithSpacing(ctx) * (#pinned_tracks + 1)
-					-- param: pinned + separator height
-					RenderMainTrackTable(main_height) -- FIXME: pinned tracks are fixed, main tracks scroll
+					RenderMainTrackTable() -- FIXME: pinned tracks are fixed, main tracks scroll
 
 					-- TODO: FUNC -- at the bottom of Child, expand all, collapse all buttons
 					ImGui.EndChild(ctx)
