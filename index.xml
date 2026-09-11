@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="cf2e58e655c34c0cd5c4ef064761f1686298adb0">
+<index version="1" name="Luiza177's REApository" commit="41d8a75ebb1dc1067aea240da1021b3ef13cf9fb">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -206,6 +206,18 @@
     - Toggle show hidden tracks in list (shift+alt+H)
     - Toggle show only folder parents (shift+alt+F)]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/cf2e58e655c34c0cd5c4ef064761f1686298adb0/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.3.4" author="Luiza177" time="2026-09-11T14:39:32Z">
+        <changelog><![CDATA[- Added option to always start a project in 'Focus view' mode
+- Added placeholder suffix for TCP-only (T), MCP-only (M), and hidden (H) tracks
+- Made expand/collapse folder buttons bigger
+- Added project ALL state reset
+- Fixed pinned tracks highlighted when selected when focus mode is on
+- Fixed Unsolo behavior in nav mode
+- Fixed table column slide when largest track number adds/removes a digit
+- Fixed main table scrolling
+- Fixed issue where a newly pinned track appears as unmarked]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/41d8a75ebb1dc1067aea240da1021b3ef13cf9fb/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
