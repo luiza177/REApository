@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="41d8a75ebb1dc1067aea240da1021b3ef13cf9fb">
+<index version="1" name="Luiza177's REApository" commit="7b9c806a318b135cdedb2fa15fb0d8a1a21f5dbc">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -218,6 +218,12 @@
 - Fixed main table scrolling
 - Fixed issue where a newly pinned track appears as unmarked]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/41d8a75ebb1dc1067aea240da1021b3ef13cf9fb/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.3.5" author="Luiza177" time="2026-09-12T10:14:25Z">
+        <changelog><![CDATA[- Text is now always readable, except potentially in tab bar
+- Reworked colors and mode representation
+- Red (alert) color is now derived from theme, if accent color is already red, then green]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/7b9c806a318b135cdedb2fa15fb0d8a1a21f5dbc/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
