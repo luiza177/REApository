@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.3.5
+-- @version 0.3.6
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -25,9 +25,7 @@
 --   - search + shortcuts
 --   - represent track color in list
 -- @changelog
---   - Text is now always readable, except potentially in tab bar
---   - Reworked colors and mode representation
---   - Red (alert) color is now derived from theme, if accent color is already red, then green
+--   - Added pin/unpin button
 -- @provides
 --   [main] .
 
@@ -143,6 +141,7 @@ local function GatherAllTrackInfo()
 			if IsVisible(track_ref) then
 				marked_pinned_tracks[track_ref] = true
 			end
+			focused_main_tracks[track_ref] = nil
 			pinned_tracks[#pinned_tracks + 1] = track_info
 		else
 			main_tracks[#main_tracks + 1] = track_info
@@ -412,7 +411,7 @@ local function RestoreAllState()
 			save_after = true
 		end
 	end
-	if save_after then -- TODO: ** -- econsider if this should save
+	if save_after then -- TODO: ** -- reconsider if this should save
 		SaveAllState()
 	end
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
@@ -771,7 +770,7 @@ local function SetupTrackListTableColumns()
 	local text_width = ImGui.CalcTextSize(ctx, tostring(num_tracks), nil, nil)
 	ImGui.TableSetupColumn(ctx, "Track #", ImGui.TableColumnFlags_WidthFixed, text_width)
 	ImGui.TableSetupColumn(ctx, "Name", ImGui.TableColumnFlags_WidthStretch)
-	-- ImGui.TableSetupColumn(ctx, "Pin/Unpin", ImGui.TableColumnFlags_WidthFixed)
+	ImGui.TableSetupColumn(ctx, "Pin/Unpin", ImGui.TableColumnFlags_WidthFixed)
 end
 
 -- TODO: COSMETIC / MAYBE -- add dimmed style
@@ -788,19 +787,33 @@ local function RenderPinUnpinButtonColumn(unpin, track)
 	ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, TRANSPARENT)
 	ImGui.PushStyleColor(ctx, ImGui.Col_Border, TRANSPARENT)
 
-	local main_color = unpin and Theme_colors.alert_color or Theme_colors.accent_color
+	local main_color = unpin and SetAlpha(Theme_colors.alert_color, 0.5)
+		or SetAlpha(Theme_colors.alternative_color, 0.3)
 	local was_hovered = pin_buttons_hover_state[track.track_ref] == true
-	local color = was_hovered and Theme_colors.text_color or Lighten(main_color, 0.1)
+	local color = was_hovered and Theme_colors.text_color or main_color
 	ImGui.PushStyleColor(ctx, ImGui.Col_Text, color)
 
 	if ImGui.SmallButton(ctx, (unpin and "x" or "o") .. "##" .. track.number) then
 		reaper.SetMediaTrackInfo_Value(track.track_ref, "B_TCPPIN", unpin and 0 or 1)
 		if unpin then
+			if not NoFocusedMainTracks() then
+				ShowHideTrack(track.track_ref, false)
+			else
+				ShowHideTrack(track.track_ref, true)
+			end
 			marked_pinned_tracks[track.track_ref] = nil
 		else
-			marked_pinned_tracks[track.track_ref] = true
-			focused_main_tracks[track.track_ref] = nil -- FIXME: TEST EDGE CASE: focus track gets pinned
+			focused_main_tracks[track.track_ref] = nil
+			if not show_pinned then
+				show_pinned = true
+			end
 		end
+		reaper.TrackList_AdjustWindows(true)
+
+		-- test: focused track gets pinned
+		-- test: track gets unmarked then unpinned, then re-pinned
+		-- test: track gets mcp/hidden then pinned
+		-- test: track gets
 	end
 
 	pin_buttons_hover_state[track.track_ref] = ImGui.IsItemHovered(ctx)
@@ -835,9 +848,10 @@ end
 local function GetPinnedHighlightColor(pt)
 	local state = GetPinnedTrackVisibilityState(pt)
 	if focus_view and state == "showing" and not NoFocusedMainTracks() then
+		-- Q: change to accent color?
 		return Theme_colors.alternative_color -- normal mode highlight
 	end
-	return Lighten(Theme_colors.bg_color, 0.2) -- neutral grey highlight
+	return Theme_colors.fg_color -- neutral grey highlight
 end
 
 local function IsPinnedRowHighlighted(pt)
@@ -848,7 +862,7 @@ local function IsPinnedRowHighlighted(pt)
 end
 
 local function RenderPinnedTrackTable()
-	if not ImGui.BeginTable(ctx, "##pinnedtracklist", 2, nil) then
+	if not ImGui.BeginTable(ctx, "##pinnedtracklist", 3, nil) then
 		return
 	end
 	SetupTrackListTableColumns()
@@ -906,14 +920,16 @@ local function RenderPinnedTrackTable()
 					HandlePinnedTrackClick(pt)
 				end
 
-				RenderTrackListContextMenu(pt) -- FIXME: no MCP-only?
+				RenderTrackListContextMenu(pt) -- TODO: no MCP-only or hidden?
 
 				if italic then
 					ImGui.PopFont(ctx)
 				end
 				ImGui.PopStyleColor(ctx, 4)
 			end
-			-- if ImGui.TableSetColumnIndex(ctx, 2) then RenderPinUnpinButtonColumn(true, pt) end --? MCP-only or hidden = no button?
+			if ImGui.TableSetColumnIndex(ctx, 2) then
+				RenderPinUnpinButtonColumn(true, pt)
+			end --? MCP-only or hidden = no button?
 		end
 	end
 
@@ -921,7 +937,7 @@ local function RenderPinnedTrackTable()
 end
 
 local function RenderMainTrackTable()
-	if not ImGui.BeginTable(ctx, "##maintracklist", 2, ImGui.TableFlags_ScrollY) then
+	if not ImGui.BeginTable(ctx, "##maintracklist", 3, ImGui.TableFlags_ScrollY) then
 		return
 	end
 	SetupTrackListTableColumns()
@@ -1003,7 +1019,9 @@ local function RenderMainTrackTable()
 
 				ImGui.PopStyleVar(ctx, 1) --? outside of loop
 			end
-			-- if ImGui.TableSetColumnIndex(ctx, 2) then RenderPinUnpinButtonColumn(false, mt) end
+			if ImGui.TableSetColumnIndex(ctx, 2) then
+				RenderPinUnpinButtonColumn(false, mt)
+			end
 		end
 		if not parent_is_collapsed then
 			skip_depth = nil
@@ -1308,7 +1326,6 @@ local function loop()
 					-- TODO: COSMETIC -- find better icon/label
 					-- ALL BUTTON
 					-- ImGui.PushStyleColor(ctx, ImGui.Col_Text, Theme_colors.accent_text_color)
-					-- FIXME: legible text in tab bar too
 					if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
 						RestoreAllState()
 					end
