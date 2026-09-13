@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="7b9c806a318b135cdedb2fa15fb0d8a1a21f5dbc">
+<index version="1" name="Luiza177's REApository" commit="9a3b96b323c101e3054244fc0f3af55e8fdaba7d">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -224,6 +224,10 @@
 - Reworked colors and mode representation
 - Red (alert) color is now derived from theme, if accent color is already red, then green]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/7b9c806a318b135cdedb2fa15fb0d8a1a21f5dbc/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.3.6" author="Luiza177" time="2026-09-13T12:19:25Z">
+        <changelog><![CDATA[- Added pin/unpin button]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/9a3b96b323c101e3054244fc0f3af55e8fdaba7d/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
