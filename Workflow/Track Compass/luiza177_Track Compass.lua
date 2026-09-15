@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.3.7
+-- @version 0.4.0
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -23,20 +23,30 @@
 --   - keyboard navigation
 --   - allow drag-select
 --   - search + shortcuts
---   - represent track color in list
 -- @changelog
 --   - Added Expand all and Collapse all buttons
+--   - Added shortcuts for Expand all (Shift + Alt + E) and Collapse all (Shift + Alt + C)
+--   - Added option to represent track colors in list
 --   - Hidden tracks now appear greyed out on list
 --   - MCP-only tracks are now slightly dimmed
 --   - Suffixes are less prominent
 --   - MCP-only and hidden tracks don't have a pin button
 --   - Pinned tracks' context menu don't have options for hiding or MCP-only
+--   - Error if no SWS extension found
 --   - refactoring
 -- @provides
 --   [main] .
 
 if not reaper.ImGui_GetBuiltinPath then
 	return reaper.MB("ReaImGui is not installed or too old.", "Track Compass -- ERROR", 0)
+end
+
+if not reaper.CF_GetSWSVersion then
+	return reaper.MB(
+		"This script requires the SWS Extension.\n\nPlease install or update SWS and try again.",
+		"Track Compass -- ERROR",
+		0
+	)
 end
 
 package.path = reaper.ImGui_GetBuiltinPath() .. "/?.lua;" .. package.path
@@ -67,6 +77,7 @@ local no_saved_data = false
 local hide_options = false
 local hide_all_button = false
 local pin_buttons_hover_state = {}
+local use_track_colors = true
 
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
@@ -80,7 +91,7 @@ local default_to_focus_mode = false
 
 ---------------------------------------------------------------------------
 -- CONFIG VARS
-ImGui.SetConfigVar(ctx, ImGui.ConfigVar_HoverStationaryDelay, 0.7)
+ImGui.SetConfigVar(ctx, ImGui.ConfigVar_HoverStationaryDelay, 0.6)
 
 ---------------------------------------------------------------------------
 -- GENERAL HELPERS
@@ -124,7 +135,13 @@ local function GatherAllTrackInfo()
 		local _, guid = reaper.GetSetMediaTrackInfo_String(track_ref, "GUID", "", false)
 		local number = i + 1
 		local is_folder = depth_change == 1
-		local color = reaper.GetMediaTrackInfo_Value(track_ref, "I_CUSTOMCOLOR") -- OS dependent color|0x1000000 (i.e. ColorToNative(r,g,b)|0x1000000). If you do not |0x1000000, then it will not be used, but will store the color
+
+		local color = nil
+		local reaper_color = reaper.GetTrackColor(track_ref)
+		if reaper_color ~= 0 then
+			color = reaper_color
+		end
+
 		local is_collapsed = reaper.GetMediaTrackInfo_Value(track_ref, "I_FOLDERCOMPACT") == 2
 		local show_tcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINTCP")
 		local show_mcp = reaper.GetMediaTrackInfo_Value(track_ref, "B_SHOWINMIXER")
@@ -170,7 +187,6 @@ local function ReadProjStoredState(track)
 		}
 		-- else
 		-- reaper.ShowConsoleMsg("\nNo value for " .. track.name .. ", GUID: " .. track.guid .. " was found!")
-		--? add to all_snap here??
 	end
 	return retval
 end
@@ -206,7 +222,7 @@ end
 ---------------------------------------------------------------------------
 -- COLOR AND THEME METHODS
 local TRANSPARENT = 0x00000000
-local ROUNDING = 3
+local ROUNDING = 2
 
 local function UnpackColor(color)
 	local r = (color >> 24) & 0xFF
@@ -240,12 +256,12 @@ local function GetLuminance(color)
 	return (0.299 * r + 0.587 * g + 0.114 * b) / 255
 end
 
--- local function Desaturate(color, amount)
---     -- amount: 0.0 (no change) to 1.0 (fully grey). Preserves hue/value/alpha.
---     local h, s, v, a = ColorToHSV(color)
---     s = s * (1 - amount)
---     return HSVToColor(h, s, v, a)
--- end
+local function Desaturate(color, amount)
+	-- amount: 0.0 (no change) to 1.0 (fully grey). Preserves hue/value/alpha.
+	local h, s, v, a = ColorToHSV(color)
+	s = s * (1 - amount)
+	return HSVToColor(h, s, v, a)
+end
 
 -- local function Saturate(color, amount)
 --     -- amount: 0.0 (no change) to 1.0 (maximally saturated). Preserves hue/value/alpha.
@@ -341,8 +357,6 @@ local function CaptureCurrentTheme()
 
 	local alert_color = DeriveAlertColor(ToImGuiColor(accent_color), 0.5)
 
-	local default_track_color = reaper.GetThemeColor("col_seltrack2", 0)
-
 	-- Q: COSMETIC / MAYBE --  is there a way to derive roundedness? maybe slider in options?
 
 	Theme_colors = {
@@ -354,7 +368,6 @@ local function CaptureCurrentTheme()
 		text_color = text_color,
 		accent_text_color = accent_text_color,
 		alert_color = alert_color,
-		default_track_color = ToImGuiColor(default_track_color),
 	}
 end
 
@@ -817,30 +830,35 @@ local function SetupTrackListTableColumns()
 	ImGui.TableSetupColumn(ctx, "Pin/Unpin", ImGui.TableColumnFlags_WidthFixed)
 end
 
-local function GetTrackStateSuffixWithStyling(track_ref)
-	if IsMCPOnly(track_ref) then -- medium dim
+local function GetTrackStylingAndSuffix(track)
+	local color = Theme_colors.text_color
+	if use_track_colors and track.color then
+		color = Desaturate(ToImGuiColor(track.color), 0.4)
+	end
+	if IsMCPOnly(track.track_ref) then -- medium dim
 		return {
 			suffix = " (M)",
-			label_color = MediumDimmed(Theme_colors.text_color),
+			label_color = MediumDimmed(color),
 			italic = false,
 		}
 	end
-	if IsTCPOnly(track_ref) then -- full opacity
+	if IsTCPOnly(track.track_ref) then -- full opacity
 		return {
 			suffix = " (T)",
-			label_color = nil,
+			label_color = color,
 			italic = false,
 		}
 	end
-	if IsArchived(track_ref) then -- full dim
+	if IsArchived(track.track_ref) then -- full dim
 		return {
 			-- suffix = " (H)",
 			suffix = "",
+			-- label_color = FullyDimmed(color),
 			label_color = FullyDimmed(Theme_colors.text_color),
 			italic = true,
 		}
 	end
-	return { suffix = "", label_color = nil, italic = false }
+	return { suffix = "", label_color = color, italic = false }
 end
 
 local function RenderTrackNumberColumn(track)
@@ -916,13 +934,18 @@ local function GetPinnedTrackVisibilityState(pt)
 end
 
 local function GetPinnedTextStyle(pt)
+	local color = Theme_colors.text_color
 	local state = GetPinnedTrackVisibilityState(pt)
+	if use_track_colors and state ~= "excluded" and pt.color then
+		color = Desaturate(ToImGuiColor(pt.color), 0.7)
+	end
+
 	if state == "excluded" then
-		return FullyDimmed(Theme_colors.text_color), true -- dimmed, italic
+		return FullyDimmed(color), true -- greyed out, dimmed, italic
 	elseif state == "suppressed" then -- showing suppressed
-		return MediumDimmed(Theme_colors.text_color), false -- medium opacity, normal
+		return MediumDimmed(color), false -- tinted, medium opacity, normal
 	else -- showing
-		return Theme_colors.text_color, false -- full opacity, normal
+		return color, false -- tinted, full opacity, normal
 	end
 end
 
@@ -940,6 +963,11 @@ local function IsPinnedRowHighlighted(pt)
 		return GetPinnedTrackVisibilityState(pt) ~= "excluded"
 	end
 	return not focus_view and reaper.IsTrackSelected(pt.track_ref)
+end
+
+local function GetFolderButtonReserveWidth()
+	local pad_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_FramePadding)
+	return pad_x * 2
 end
 
 local function RenderPinnedTrackTable()
@@ -969,7 +997,7 @@ local function RenderPinnedTrackTable()
 				if italic then
 					ImGui.PushFont(ctx, italic_font, ImGui.GetFontSize(ctx))
 				end
-				local row_style = GetTrackStateSuffixWithStyling(pt.track_ref)
+				local row_style = GetTrackStylingAndSuffix(pt)
 
 				local selectable_flags = ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
 				if pin_was_hovered or context_menu_open then
@@ -1045,6 +1073,13 @@ local function RenderMainTrackTable(height)
 			if ImGui.TableSetColumnIndex(ctx, 1) then
 				local is_button_hovered = false
 
+				-- COLOR
+				local row_style = GetTrackStylingAndSuffix(mt)
+				ImGui.PushStyleColor(ctx, ImGui.Col_Text, row_style.label_color)
+				if row_style.italic then
+					ImGui.PushFont(ctx, italic_font, ImGui.GetFontSize(ctx))
+				end
+
 				-- INDENT
 				if mt.depth > 0 then
 					ImGui.Indent(ctx, mt.depth * ImGui.GetFontSize(ctx))
@@ -1053,20 +1088,15 @@ local function RenderMainTrackTable(height)
 				-- FOLDER BUTTON
 				if mt.is_folder then
 					is_button_hovered = FolderExpandCollapseButton(mt)
+				elseif mt.depth > 0 then
+					ImGui.Dummy(ctx, GetFolderButtonReserveWidth(), 0)
+					ImGui.SameLine(ctx)
 				end
 
 				-- SELECTABLE
 				local selectable_flags = ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap
 				if is_button_hovered or pin_was_hovered or context_menu_open then
 					selectable_flags = selectable_flags | ImGui.SelectableFlags_Highlight
-				end
-
-				local row_style = GetTrackStateSuffixWithStyling(mt.track_ref)
-				if row_style.label_color then
-					ImGui.PushStyleColor(ctx, ImGui.Col_Text, row_style.label_color)
-				end
-				if row_style.italic then
-					ImGui.PushFont(ctx, italic_font, ImGui.GetFontSize(ctx))
 				end
 
 				if
@@ -1084,9 +1114,7 @@ local function RenderMainTrackTable(height)
 					end
 				end
 
-				if row_style.label_color then
-					ImGui.PopStyleColor(ctx, 1)
-				end
+				ImGui.PopStyleColor(ctx, 1) -- label color
 				if row_style.italic then
 					ImGui.PopFont(ctx)
 				end
@@ -1271,7 +1299,6 @@ local function ExpandCollapseAll(expand)
 end
 
 local function HandleGlobalShortcuts()
-	--FIXME: needs warning on run if no SWS
 	-- FOCUS ARRANGE WINDOW
 	if ImGui.IsKeyPressed(ctx, ImGui.Key_Escape) then
 		local cmd = reaper.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
@@ -1303,7 +1330,12 @@ local function HandleGlobalShortcuts()
 	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_F) then
 		SetShowFoldersOnly(not only_folder_parents)
 	end
-	-- TODO: FUNC / SHORTCUTS -- expand/collapse all
+	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_C) then
+		ExpandCollapseAll(false) -- collapse
+	end
+	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_E) then
+		ExpandCollapseAll(true) -- expand
+	end
 	-- TODO: FUNC / SHORTCUTS -- for toggle tabs
 end
 
@@ -1376,8 +1408,9 @@ local function loop()
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 2)
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 3)
 
-					ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Theme_colors.fg_color, 0.4))
+					ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Theme_colors.fg_color, 0.4)) -- TODO: adjust
 					ImGui.PushStyleColor(ctx, ImGui.Col_Button, TRANSPARENT)
+					ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(mode_color, 0.6))
 
 					GatherAllTrackInfo()
 					RenderPinnedTrackTable()
@@ -1392,19 +1425,33 @@ local function loop()
 					-- COLLAPSE/EXPAND ALL BUTTONS
 					ImGui.BeginGroup(ctx)
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 1)
+					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 7)
 					local available_width = ImGui.GetContentRegionAvail(ctx)
-					if ImGui.Button(ctx, "Collapse all", available_width / 2) then
+					local dummy_width = available_width
+						- ImGui.CalcTextSize(ctx, "⊟", nil, nil) * 2
+						- ImGui.GetStyleVar(ctx, ImGui.StyleVar_FramePadding) * 4
+						- ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
+
+					ImGui.Dummy(ctx, dummy_width, 0)
+					ImGui.SameLine(ctx)
+
+					if ImGui.Button(ctx, "⊟") then
 						ExpandCollapseAll(false)
 					end
+					ImGui.SetItemTooltip(ctx, "Collapse all folders")
+
 					ImGui.SameLine(ctx)
-					if ImGui.Button(ctx, "Expand all", available_width / 2) then
+
+					if ImGui.Button(ctx, "⊞") then
 						ExpandCollapseAll(true)
 					end
+					ImGui.SetItemTooltip(ctx, "Expand all folders")
+
 					ImGui.PopStyleVar(ctx, 1)
 					ImGui.EndGroup(ctx)
 
-					ImGui.PopStyleVar(ctx, 3) -- framebordersize, framepadding, itemspacing
-					ImGui.PopStyleColor(ctx, 2) -- col_border, fg; btn, transp;
+					ImGui.PopStyleVar(ctx, 4) -- framebordersize, framepadding, itemspacing
+					ImGui.PopStyleColor(ctx, 3) -- col_border, fg; btn, transp; btn hover, fg
 					ImGui.EndChild(ctx)
 				end
 				ImGui.PopStyleVar(ctx, 1) -- framebordersize 2
@@ -1422,6 +1469,7 @@ local function loop()
 					-- Q: COSMETIC -- find better icon/label
 					-- ALL BUTTON -- TODO: ⛯
 					-- ImGui.PushStyleColor(ctx, ImGui.Col_Text, Theme_colors.accent_text_color)
+					-- TODO: include shortcut
 					if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
 						RestoreAllState()
 					end
@@ -1434,6 +1482,7 @@ local function loop()
 					ImGui.SameLine(ctx)
 
 					-- CAPTURE BUTTON -- TODO: ◉◎
+					-- TODO: include shortcut
 					CaptureButton(capture_button_width)
 					ImGui.PopStyleVar(ctx, 1) -- item spacing, 2
 				end
@@ -1478,6 +1527,7 @@ local function loop()
 				ImGui.SeparatorText(ctx, "List")
 
 				-- SHOW MCP-only
+				-- TODO: include shortcut
 				local show_mcp_only_tracks_change, show_mcp_only_tracks_new =
 					ImGui.Checkbox(ctx, "Show MCP-only", show_mcp_only_tracks)
 				if show_mcp_only_tracks_change then
@@ -1486,6 +1536,7 @@ local function loop()
 				ImGui.SetItemTooltip(ctx, "Show tracks with only the MCP (eg. FX return tracks) in the track list")
 
 				-- SHOW HIDDEN
+				-- TODO: include shortcut
 				local show_hidden_tracks_change, show_hidden_tracks_new =
 					ImGui.Checkbox(ctx, "Show hidden", show_hidden_tracks)
 				if show_hidden_tracks_change then
@@ -1494,6 +1545,7 @@ local function loop()
 				ImGui.SetItemTooltip(ctx, "Show hidden tracks in track list")
 
 				-- ONLY SHOW FOLDERS
+				-- TODO: include shortcut
 				local only_folder_parents_change, only_folders_parents_new =
 					ImGui.Checkbox(ctx, "Only folders parents", only_folder_parents)
 				if only_folder_parents_change then
@@ -1544,6 +1596,17 @@ local function loop()
 					"On project load, even if not in a focused state, default to starting in 'Focus view' mode"
 				)
 
+				local use_track_colors_change, use_track_colors_new =
+					ImGui.Checkbox(ctx, "Use track colors in list", use_track_colors)
+				if use_track_colors_change then
+					use_track_colors = use_track_colors_new
+					SaveBoolState("use_track_colors", use_track_colors)
+				end
+				ImGui.SetItemTooltip(
+					ctx,
+					"Color tracks by their custom color in the track list.\nTracks using the default color will still use the normal text color"
+				)
+
 				ImGui.SeparatorText(ctx, "Theme")
 				-- CAPTURE THEME
 				if ImGui.Button(ctx, "Adapt to current theme", -FLT_MIN) then
@@ -1578,6 +1641,7 @@ end
 
 local function Init()
 	CaptureCurrentTheme()
+	use_track_colors = LoadBoolState("use_track_colors", use_track_colors)
 	default_to_focus_mode = LoadBoolState("default_to_focus_mode", default_to_focus_mode)
 	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
 	show_hidden_tracks = LoadBoolState("show_hidden_tracks", show_hidden_tracks)
