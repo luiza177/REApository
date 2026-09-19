@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="d63ac15bf1749fd8b62c8b0b6b8ac20ab810687b">
+<index version="1" name="Luiza177's REApository" commit="1962b278695c13cfe2ce364d0874ab341c1d0e7a">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -107,12 +107,10 @@
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Ctrl/Cmd click for multi-select\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Alt/Opt click or turn on Solo mode for soloing\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Adapts to your theme It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim. And, of course, add some bells and whistles.\sa180\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 (Current?) Limitations:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab No click-and-drag to select\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Roadmap:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab keyboard navigation\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab allow drag-select\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab search + shortcuts\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Allow drag-select\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Search\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Allow focusing back and forth (if possible)\sa180\par}
 }
 ]]></description>
       </metadata>
@@ -250,6 +248,13 @@
 - Error if no SWS extension found
 - refactoring]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/d63ac15bf1749fd8b62c8b0b6b8ac20ab810687b/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.5.0" author="Luiza177" time="2026-09-19T10:11:34Z">
+        <changelog><![CDATA[- Added basic keyboard navigation (arrow keys or vim-like hjkl), left/right are context sensitive
+- Left arrow, H or Backspace: collapse folder, go to parent, go to pinned tracks, go to top of the list
+- Right attow, L or Enter: expand folder, act as a mouse-click
+- When keyboard cursor is on track "P" will pin/unpin track]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/1962b278695c13cfe2ce364d0874ab341c1d0e7a/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
