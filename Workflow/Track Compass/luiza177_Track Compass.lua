@@ -22,6 +22,8 @@
 --   - Search
 --   - Allow focusing back and forth (if possible)
 -- @changelog
+--   - Major performance improvement on track focus
+--   - Better accent color selection on more themes
 -- @provides
 --   [main] .
 
@@ -361,7 +363,6 @@ local function CaptureCurrentTheme()
 	if GetSaturation(accent_color) < 0.5 then
 		accent_color = reaper.GetThemeColor("genlist_selbg", 0)
 	end
-	-- TODO: adjust luminance depending on light or dark theme, or get luminance from genlist_selbg
 
 	local alternative_color = reaper.GetThemeColor("playcursor_color", 0)
 	-- TODO: if the same as accent, try something else
@@ -631,6 +632,7 @@ local function IsEntrySelected(track, set)
 end
 
 local function FocusSelected(should_solo)
+	reaper.PreventUIRefresh(1)
 	for _, pt in ipairs(pinned_tracks) do
 		local is_visible = show_pinned and IsMarkedForVisibility(pt.track_ref)
 		SetSolo(pt.track_ref, (should_solo and is_visible) and 1 or 0)
@@ -1111,6 +1113,12 @@ local function RenderMainTrackTable(height)
 		if not parent_is_collapsed and PassesDisplayFilters(mt) then
 			ImGui.TableNextRow(ctx)
 
+			-- SET Y SCROLL
+			-- TODO: scroll follows cursor
+			-- if tc_cursor and tc_cursor.track_ref == mt.track_ref then
+			-- 	ImGui.SetScrollHereY(ctx, 0.5)
+			-- end
+
 			local pin_was_hovered = pin_buttons_hover_state[mt.track_ref] == true
 			local context_menu_open = ImGui.IsPopupOpen(ctx, GetTrackContextMenuId(mt))
 
@@ -1501,7 +1509,6 @@ local function HandleTrackListKeyCommands()
 	local index = ResolveCursorIndex(list)
 	tc_cursor = ImGui.IsWindowFocused(ctx, ImGui.FocusedFlags_RootAndChildWindows) and list[index] or nil
 
-	-- TODO: scrollwheel follows
 	if
 		ImGui.Shortcut(ctx, ImGui.Key_J, ImGui.InputFlags_Repeat)
 		or ImGui.Shortcut(ctx, ImGui.Key_DownArrow, ImGui.InputFlags_Repeat)
@@ -1522,7 +1529,6 @@ local function HandleTrackListKeyCommands()
 		last_tc_cursor = tc_cursor
 	end
 
-	-- TODO: scrollwheel follows
 	if
 		ImGui.Shortcut(ctx, ImGui.Key_K, ImGui.InputFlags_Repeat)
 		or ImGui.Shortcut(ctx, ImGui.Key_UpArrow, ImGui.InputFlags_Repeat)
