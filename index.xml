@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="1962b278695c13cfe2ce364d0874ab341c1d0e7a">
+<index version="1" name="Luiza177's REApository" commit="a3321f762f371ec9d9357e323c5a21e48d4a8f9b">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -255,6 +255,11 @@
 - Right attow, L or Enter: expand folder, act as a mouse-click
 - When keyboard cursor is on track "P" will pin/unpin track]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/1962b278695c13cfe2ce364d0874ab341c1d0e7a/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.5.1" author="Luiza177" time="2026-09-21T15:52:50Z">
+        <changelog><![CDATA[- Major performance improvement on track focus
+- Better accent color selection on more themes]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/a3321f762f371ec9d9357e323c5a21e48d4a8f9b/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
