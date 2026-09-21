@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.5.0
+-- @version 0.5.1
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -22,10 +22,6 @@
 --   - Search
 --   - Allow focusing back and forth (if possible)
 -- @changelog
---   - Added basic keyboard navigation (arrow keys or vim-like hjkl), left/right are context sensitive
---   - Left arrow, H or Backspace: collapse folder, go to parent, go to pinned tracks, go to top of the list
---   - Right attow, L or Enter: expand folder, act as a mouse-click
---   - When keyboard cursor is on track "P" will pin/unpin track
 -- @provides
 --   [main] .
 
@@ -70,7 +66,7 @@ local last_tc_cursor = nil
 -- UI GLOBALS --------------------------------------------------------------
 local hide_options = false
 local hide_all_button = false
-local pin_buttons_hover_state = {} -- TODO: does this need to be an array/set?
+local pin_buttons_hover_state = {}
 local use_track_colors = true
 
 ----------------------------------------------------------------------------
@@ -275,6 +271,11 @@ end
 --     return HSVToColor(h, s, v, a)
 -- end
 
+local function GetSaturation(color)
+	local _, s, _, _ = ColorToHSV(color)
+	return s
+end
+
 local function HueDistance(h1, h2)
 	local d = math.abs(h1 - h2)
 	return math.min(d, 1 - d) -- circular distance on the hue wheel (0..1 wraps)
@@ -353,8 +354,17 @@ local function CaptureCurrentTheme()
 	local fg_color = ToImGuiColor(bg_color)
 	fg_color = GetLuminance(fg_color) <= 0.5 and Lighten(fg_color, 0.2) or Darken(fg_color, 0.2)
 
-	local accent_color = reaper.GetThemeColor("col_cursor", 0) -- or col_toolbar_text_on, genlist_selbg, col_cursor
+	local accent_color = reaper.GetThemeColor("col_toolbar_text_on", 0) -- or col_toolbar_text_on, genlist_selbg, col_cursor
+	if GetSaturation(accent_color) < 0.5 then
+		accent_color = reaper.GetThemeColor("col_cursor", 0)
+	end
+	if GetSaturation(accent_color) < 0.5 then
+		accent_color = reaper.GetThemeColor("genlist_selbg", 0)
+	end
+	-- TODO: adjust luminance depending on light or dark theme, or get luminance from genlist_selbg
+
 	local alternative_color = reaper.GetThemeColor("playcursor_color", 0)
+	-- TODO: if the same as accent, try something else
 
 	local theme_text_color = reaper.GetThemeColor("col_tcp_textsel", 0)
 	local text_color = GetReadableTextColor(bg_color, theme_text_color)
@@ -938,7 +948,7 @@ local function FolderExpandCollapseButton(track)
 			reaper.SetMediaTrackInfo_Value(track.track_ref, "I_FOLDERCOMPACT", 2)
 		end
 		tc_cursor = track
-		last_tc_cursor = track
+		last_tc_cursor = tc_cursor
 	end
 	if ImGui.IsItemHovered(ctx) then
 		is_hovered = true
@@ -1331,43 +1341,46 @@ end
 
 local function HandleGlobalShortcuts()
 	-- FOCUS ARRANGE WINDOW
-	if ImGui.IsKeyPressed(ctx, ImGui.Key_Escape) then
+	if ImGui.Shortcut(ctx, ImGui.Key_Escape) then
 		local cmd = reaper.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
 		if cmd ~= 0 then
 			reaper.Main_OnCommand(cmd, 0)
 		end
 	end
-	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Key_A) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_A) then
 		RestoreAllState()
 	end
-	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Mod_Alt | ImGui.Key_A) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Mod_Alt | ImGui.Key_A) then
 		CaptureAllState(true)
 	end
-	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Key_F) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_F) then
 		SetFocusView(not focus_view)
 	end
-	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_S) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_S) then
 		SetSoloMode(not solo_selected)
 	end
-	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Ctrl | ImGui.Key_P) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_P) then
 		SetShowPinned(not show_pinned)
 	end
-	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_M) then
+	-- FIXME: calls up Item menu on windows
+	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_M) then
 		SetShowHideMCPOnly(not show_mcp_only_tracks)
 	end
-	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_H) then
+	-- FIXME: calls up Help menu on windows
+	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_H) then
 		SetShowHideArchived(not show_hidden_tracks)
 	end
-	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_F) then
+	-- FIXME: calls up Edit menu on windows
+	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_F) then
 		SetShowFoldersOnly(not only_folder_parents)
 	end
-	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_C) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_C) then
 		ExpandCollapseAll(false) -- collapse
 	end
-	if ImGui.IsKeyChordPressed(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_E) then
+	-- FIXME: calls up Edit menu on windows
+	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_E) then
 		ExpandCollapseAll(true) -- expand
 	end
-	-- TODO: FUNC / SHORTCUTS -- for toggle tabs
 end
 
 -- KEYBOARD NAVIGATION
@@ -1488,7 +1501,11 @@ local function HandleTrackListKeyCommands()
 	local index = ResolveCursorIndex(list)
 	tc_cursor = ImGui.IsWindowFocused(ctx, ImGui.FocusedFlags_RootAndChildWindows) and list[index] or nil
 
-	if ImGui.IsKeyPressed(ctx, ImGui.Key_J) or ImGui.IsKeyPressed(ctx, ImGui.Key_DownArrow) then
+	-- TODO: scrollwheel follows
+	if
+		ImGui.Shortcut(ctx, ImGui.Key_J, ImGui.InputFlags_Repeat)
+		or ImGui.Shortcut(ctx, ImGui.Key_DownArrow, ImGui.InputFlags_Repeat)
+	then
 		if not index then
 			index = 1
 			tc_cursor = list[index]
@@ -1505,7 +1522,11 @@ local function HandleTrackListKeyCommands()
 		last_tc_cursor = tc_cursor
 	end
 
-	if ImGui.IsKeyPressed(ctx, ImGui.Key_K) or ImGui.IsKeyPressed(ctx, ImGui.Key_UpArrow) then
+	-- TODO: scrollwheel follows
+	if
+		ImGui.Shortcut(ctx, ImGui.Key_K, ImGui.InputFlags_Repeat)
+		or ImGui.Shortcut(ctx, ImGui.Key_UpArrow, ImGui.InputFlags_Repeat)
+	then
 		if not index then
 			index = #list
 			tc_cursor = list[index]
@@ -1523,9 +1544,9 @@ local function HandleTrackListKeyCommands()
 	end
 
 	if
-		ImGui.IsKeyPressed(ctx, ImGui.Key_L)
-		or ImGui.IsKeyPressed(ctx, ImGui.Key_RightArrow)
-		or ImGui.IsKeyPressed(ctx, ImGui.Key_Enter)
+		ImGui.Shortcut(ctx, ImGui.Key_L)
+		or ImGui.Shortcut(ctx, ImGui.Key_RightArrow)
+		or ImGui.Shortcut(ctx, ImGui.Key_Enter)
 	then
 		if tc_cursor then
 			if tc_cursor.is_folder and tc_cursor.is_collapsed then
@@ -1541,9 +1562,9 @@ local function HandleTrackListKeyCommands()
 	end
 
 	if
-		ImGui.IsKeyPressed(ctx, ImGui.Key_H)
-		or ImGui.IsKeyPressed(ctx, ImGui.Key_LeftArrow)
-		or ImGui.IsKeyPressed(ctx, ImGui.Key_Backspace)
+		ImGui.Shortcut(ctx, ImGui.Key_H)
+		or ImGui.Shortcut(ctx, ImGui.Key_LeftArrow)
+		or ImGui.Shortcut(ctx, ImGui.Key_Backspace)
 	then
 		if tc_cursor then
 			if tc_cursor.is_folder and not tc_cursor.is_collapsed then
@@ -1554,7 +1575,7 @@ local function HandleTrackListKeyCommands()
 		end
 	end
 
-	if ImGui.IsKeyPressed(ctx, ImGui.Key_P) then
+	if ImGui.Shortcut(ctx, ImGui.Key_P) then
 		if tc_cursor then
 			PinUnpinTrack(tc_cursor.is_pinned, tc_cursor.track_ref)
 			-- Q: go back to main?
@@ -1606,6 +1627,7 @@ local function loop()
 			end
 
 			------------------------------- TRACK LIST TAB
+			ImGui.SetNextItemShortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_Period) -- TODO: notate or do toggle
 			if ImGui.BeginTabItem(ctx, "Track list") then
 				HandleTrackListKeyCommands()
 				--------------------------- WINDOW SIZING
@@ -1756,6 +1778,7 @@ local function loop()
 
 				ImGui.EndTabItem(ctx)
 			end -- tab item
+			ImGui.SetNextItemShortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_Comma)
 			------------------------------- OPTIONS TAB
 			if ImGui.BeginTabItem(ctx, "Options") then
 				ImGui.SeparatorText(ctx, "List")
