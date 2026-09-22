@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.5.1
+-- @version 0.5.2
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -20,10 +20,18 @@
 --   ## Roadmap:
 --   - Allow drag-select
 --   - Search
---   - Allow focusing back and forth (if possible)
 -- @changelog
---   - Major performance improvement on track focus
---   - Better accent color selection on more themes
+--   - Main list scroll now following keyboard cursor
+--   - Supports back and forth focusing with shortcuts (workaround): Esc to focus back arrange view, and your shortcut of choice (needs more testing)
+--   - Added shortcuts for activating Options tab (Ctrl/Cmd + ,) and Track List tab (Ctrl/Cmd + .)
+--   - Added quit shortcut (Ctrl/Cmd + W)
+--   - Changed Alt/Opt-based shortcuts to Ctrl/Cmd to avoid clashing with Windows menu
+--   - Solo mode = Ctrl/Cmd + Alt/Opt + S
+--   - Show MCP-only in list = Ctrl/Cmd + Shift + M
+--   - Show Hidden tracks in list = Ctrl/Cmd + Shift + H
+--   - Show only Folder parents in list = Ctrl/Cmd + Shift + F
+--   - Expand all = Ctrl/Cmd + Shift + E
+--   - Collapse all = Ctrl/Cmd + Shift + C
 -- @provides
 --   [main] .
 
@@ -63,7 +71,9 @@ local last_main_click_ref = nil
 local last_known_project = ({ reaper.EnumProjects(-1) })[2] or ""
 local no_saved_data = false
 local tc_cursor = nil
-local last_tc_cursor = nil
+local last_tc_ref = nil
+local tc_cursor_moved_this_frame = false
+local quit = false
 
 -- UI GLOBALS --------------------------------------------------------------
 local hide_options = false
@@ -101,12 +111,24 @@ local function SaveBoolState(key, value)
 	reaper.SetExtState(ext_name, key, value and "1" or "0", true)
 end
 
-local function LoadBoolState(key, default)
+local function LoadState(key, default)
 	local value = reaper.GetExtState(ext_name, key)
 	if value == "" then
 		return default
 	end
+	return value
+end
+
+local function LoadBoolState(key, default)
+	local value = LoadState(key, default)
 	return value == "1"
+end
+
+local function FocusArrangeView()
+	local cmd = reaper.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
+	if cmd ~= 0 then
+		reaper.Main_OnCommand(cmd, 0)
+	end
 end
 
 local function GetTrackName(track, i)
@@ -300,7 +322,7 @@ local function DeriveAlertColor(base_color, theme_influence)
 	return HSVToColor(chosen_hue, out_s, out_v, 1)
 end
 
-local function GetReadableTextColor(bg_color, hue_source_color) -- Q: COSMETIC -- if dark text, saturated color
+local function GetReadableTextColor(bg_color, hue_source_color)
 	local TEXT_ANCHOR_S = 0.1 -- tiny hint of color
 	local TEXT_LIGHT_V = 0.95 -- almost-white
 	local TEXT_DARK_V = 0.12 -- almost-black
@@ -398,8 +420,9 @@ local function PushInitColors()
 	return 5
 end
 
-local function PushTabColors() -- FIXME: COLOR -- needs different text color depending on bg
-	ImGui.PushStyleColor(ctx, ImGui.Col_TabSelected, SetAlpha(Theme_colors.accent_color, 0.9))
+local function PushTabColors(dim_diff) -- FIXME: COLOR -- needs different text color depending on bg
+	local dim = dim_diff or 0
+	ImGui.PushStyleColor(ctx, ImGui.Col_TabSelected, SetAlpha(Theme_colors.accent_color, 0.9 - dim))
 	ImGui.PushStyleColor(ctx, ImGui.Col_TabSelectedOverline, Theme_colors.fg_color)
 	ImGui.PushStyleColor(ctx, ImGui.Col_Tab, SetAlpha(Theme_colors.bg2_color, 0.45))
 	ImGui.PushStyleColor(ctx, ImGui.Col_TabHovered, SetAlpha(Theme_colors.accent_color, 0.15))
@@ -409,23 +432,26 @@ local function PushTabColors() -- FIXME: COLOR -- needs different text color dep
 	return 6
 end
 
-local function PushButtonColors(color) -- FIXME: COLOR -- needs different text color depending on bg
+local function PushButtonColors(color, dim_diff) -- FIXME: COLOR -- needs different text color depending on bg
+	local dim = dim_diff or 0
 	local btn_color = color or Theme_colors.accent_color
-	ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(btn_color, 0.55))
+	ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(btn_color, 0.55 - dim))
 	ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, btn_color)
-	ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(btn_color, 0.67))
+	ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(btn_color, 0.67 - dim))
 
 	return 3
 end
 
-local function PushAlertButtonColors()
-	return PushButtonColors(Theme_colors.alert_color)
+local function PushAlertButtonColors(dim_diff)
+	local dim = dim_diff or 0
+	return PushButtonColors(Theme_colors.alert_color, dim)
 end
 
-local function PushMutedButtonColors()
-	ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.bg2_color, 0.6))
+local function PushMutedButtonColors(dim_diff)
+	local dim = dim_diff or 0
+	ImGui.PushStyleColor(ctx, ImGui.Col_Button, SetAlpha(Theme_colors.bg2_color, 0.6 - dim))
 	ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, Darken(Theme_colors.bg2_color, 0.1))
-	ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.bg_color, 0.6))
+	ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, SetAlpha(Theme_colors.bg_color, 0.6 - dim))
 
 	return 3
 end
@@ -444,11 +470,12 @@ local function PushResizeGripColors()
 	return 3
 end
 
-local function PushScrollbarColors(mode_color)
+local function PushScrollbarColors(mode_color, dim_diff)
+	local dim = dim_diff or 0
 	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarBg, SetAlpha(Darken(Theme_colors.bg2_color, 0.1), 0.5))
-	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrab, SetAlpha(mode_color, 0.4))
+	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrab, SetAlpha(mode_color, 0.4 - dim))
 	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabActive, SetAlpha(mode_color, 0.6))
-	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabHovered, SetAlpha(Lighten(mode_color, 0.15), 1))
+	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabHovered, SetAlpha(Lighten(mode_color, 0.15), 1 - dim))
 	return 4
 end
 
@@ -643,6 +670,7 @@ local function FocusSelected(should_solo)
 		SetSolo(mt.track_ref, (should_solo and focused) and 1 or 0)
 	end
 
+	reaper.PreventUIRefresh(-1)
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
 end
 
@@ -696,7 +724,7 @@ end
 
 local function HandleMainTrackClick(track)
 	tc_cursor = track
-	last_tc_cursor = tc_cursor
+	last_tc_ref = tc_cursor.track_ref
 	local mods = ImGui.GetKeyMods(ctx)
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
 	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
@@ -762,7 +790,7 @@ end
 
 local function HandleNavClick(track)
 	tc_cursor = track
-	last_tc_cursor = tc_cursor
+	last_tc_ref = tc_cursor.track_ref
 	local mods = ImGui.GetKeyMods(ctx)
 	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
 	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
@@ -950,7 +978,7 @@ local function FolderExpandCollapseButton(track)
 			reaper.SetMediaTrackInfo_Value(track.track_ref, "I_FOLDERCOMPACT", 2)
 		end
 		tc_cursor = track
-		last_tc_cursor = tc_cursor
+		last_tc_ref = tc_cursor.track_ref
 	end
 	if ImGui.IsItemHovered(ctx) then
 		is_hovered = true
@@ -959,7 +987,6 @@ local function FolderExpandCollapseButton(track)
 	return is_hovered
 end
 
--- Q: COMPLEX UX change -- highlight grey if selected, highlight blue if focus mode hover or focused
 local function GetPinnedTrackVisibilityState(pt)
 	if IsMarkedForVisibility(pt.track_ref) then
 		if show_pinned then
@@ -1062,8 +1089,6 @@ local function RenderPinnedTrackTable()
 					HandlePinnedTrackClick(pt)
 				end
 
-				-- Q: if hovered, then tc_cursor follows
-
 				RenderTrackListContextMenu(pt, true)
 
 				if italic then
@@ -1114,11 +1139,20 @@ local function RenderMainTrackTable(height)
 			ImGui.TableNextRow(ctx)
 
 			-- SET Y SCROLL
-			-- TODO: scroll follows cursor
-			-- if tc_cursor and tc_cursor.track_ref == mt.track_ref then
-			-- 	ImGui.SetScrollHereY(ctx, 0.5)
-			-- end
+			if tc_cursor_moved_this_frame and tc_cursor and tc_cursor.track_ref == mt.track_ref then
+				local _, row_min_y = ImGui.GetItemRectMin(ctx)
+				local _, row_max_y = ImGui.GetItemRectMax(ctx)
+				local _, win_y = ImGui.GetWindowPos(ctx)
+				local _, win_h = ImGui.GetWindowSize(ctx)
 
+				local frame_height = ImGui.GetFrameHeightWithSpacing(ctx)
+
+				local fully_visible = row_min_y >= win_y and row_max_y <= (win_y + win_h - frame_height)
+
+				if not fully_visible then
+					ImGui.SetScrollHereY(ctx, 0.5)
+				end
+			end
 			local pin_was_hovered = pin_buttons_hover_state[mt.track_ref] == true
 			local context_menu_open = ImGui.IsPopupOpen(ctx, GetTrackContextMenuId(mt))
 
@@ -1168,7 +1202,6 @@ local function RenderMainTrackTable(height)
 						HandleMainTrackClick(mt)
 					end
 				end
-				-- Q: if hovered, then tc_cursor follows
 
 				ImGui.PopStyleColor(ctx, 1) -- text label color
 				if row_style.italic then
@@ -1350,10 +1383,10 @@ end
 local function HandleGlobalShortcuts()
 	-- FOCUS ARRANGE WINDOW
 	if ImGui.Shortcut(ctx, ImGui.Key_Escape) then
-		local cmd = reaper.NamedCommandLookup("_BR_FOCUS_ARRANGE_WND")
-		if cmd ~= 0 then
-			reaper.Main_OnCommand(cmd, 0)
-		end
+		FocusArrangeView()
+	end
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_W) then
+		quit = true
 	end
 	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_A) then
 		RestoreAllState()
@@ -1364,28 +1397,24 @@ local function HandleGlobalShortcuts()
 	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_F) then
 		SetFocusView(not focus_view)
 	end
-	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_S) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Mod_Alt | ImGui.Key_S) then
 		SetSoloMode(not solo_selected)
 	end
 	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_P) then
 		SetShowPinned(not show_pinned)
 	end
-	-- FIXME: calls up Item menu on windows
-	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_M) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Mod_Shift | ImGui.Key_M) then
 		SetShowHideMCPOnly(not show_mcp_only_tracks)
 	end
-	-- FIXME: calls up Help menu on windows
-	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_H) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Mod_Shift | ImGui.Key_H) then
 		SetShowHideArchived(not show_hidden_tracks)
 	end
-	-- FIXME: calls up Edit menu on windows
-	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_F) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Mod_Shift | ImGui.Key_F) then
 		SetShowFoldersOnly(not only_folder_parents)
 	end
-	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_C) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Mod_Shift | ImGui.Key_C) then
 		ExpandCollapseAll(false) -- collapse
 	end
-	-- FIXME: calls up Edit menu on windows
 	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_E) then
 		ExpandCollapseAll(true) -- expand
 	end
@@ -1448,7 +1477,6 @@ end
 
 local function FindIndexOfTrack(list, track_ref)
 	for i, entry in ipairs(list) do
-		-- if tc_cursor and entry.track_ref == tc_cursor.track_ref then
 		if entry.track_ref == track_ref then
 			return i
 		end
@@ -1467,25 +1495,33 @@ local function ResolveCursorIndex(list)
 		local closest_track = tc_cursor and FindClosestTrackInList(list, tc_cursor.number)
 		if closest_track then
 			tc_cursor = closest_track
-			last_tc_cursor = tc_cursor
+			last_tc_ref = tc_cursor.track_ref
 			return FindIndexOfTrack(list, tc_cursor)
 		end
 	end
 
 	-- try default to first selected track
-	if reaper.CountSelectedTracks(0) > 0 then
+	if NoFocusedMainTracks() and reaper.CountSelectedTracks(0) > 0 then
 		local track_ref = reaper.GetSelectedTrack(0, 0)
 		local index = FindIndexOfTrack(list, track_ref)
 		tc_cursor = list[index]
-		last_tc_cursor = tc_cursor
+		last_tc_ref = tc_cursor.track_ref
 		return index
 	end
 
-	-- remember last place if no selected tracks
-	if last_tc_cursor then
-		tc_cursor = last_tc_cursor
-		return FindIndexOfTrack(list, tc_cursor.track_ref)
+	-- remember last place if no selected or focused tracks
+	if last_tc_ref then -- Q: and is visible?
+		local index = FindIndexOfTrack(list, last_tc_ref)
+		tc_cursor = list[index]
+		return index
 	end
+
+	-- TODO: if focus, then first selected focused track
+	-- if focus_view and not NoFocusedMainTracks() then
+	-- local index = FindIndexOfTrack(list, )
+	-- tc_cursor = list[index]
+	-- return index
+	-- end
 
 	return nil
 end
@@ -1526,7 +1562,8 @@ local function HandleTrackListKeyCommands()
 			index = 0
 		end
 		tc_cursor = list[index]
-		last_tc_cursor = tc_cursor
+		last_tc_ref = tc_cursor.track_ref
+		tc_cursor_moved_this_frame = true
 	end
 
 	if
@@ -1546,7 +1583,8 @@ local function HandleTrackListKeyCommands()
 			index = 1
 		end
 		tc_cursor = list[index]
-		last_tc_cursor = tc_cursor
+		last_tc_ref = tc_cursor.track_ref
+		tc_cursor_moved_this_frame = true
 	end
 
 	if
@@ -1577,6 +1615,7 @@ local function HandleTrackListKeyCommands()
 				reaper.SetMediaTrackInfo_Value(tc_cursor.track_ref, "I_FOLDERCOMPACT", 2)
 			else
 				tc_cursor = list[FindTrackParentIndex(list, index, tc_cursor.depth, tc_cursor.is_pinned)]
+				tc_cursor_moved_this_frame = true
 			end
 		end
 	end
@@ -1587,8 +1626,6 @@ local function HandleTrackListKeyCommands()
 			-- Q: go back to main?
 		end
 	end
-
-	-- TODO: vim-like "number then g" to go to track whose number is typed
 end
 
 --==============================================================
@@ -1606,8 +1643,10 @@ local function loop()
 	color_count = 0
 
 	if visible then
-		local not_focused_dim = not ImGui.IsWindowFocused(ctx, ImGui.FocusedFlags_RootAndChildWindows) and 0.25 or 0
 		HandleGlobalShortcuts()
+
+		local not_focused_dim = not ImGui.IsWindowFocused(ctx, ImGui.FocusedFlags_RootAndChildWindows) and 0.25 or 0
+
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, ROUNDING)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 4, 2)
 		ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarRounding, ROUNDING)
@@ -1617,15 +1656,15 @@ local function loop()
 
 		ImGui.PushStyleColor(ctx, ImGui.Col_Text, Theme_colors.text_color)
 		color_count = color_count + 1
-		color_count = color_count + PushTabColors()
+		color_count = color_count + PushTabColors(not_focused_dim)
 		ImGui.PushStyleColor(ctx, ImGui.Col_Border, SetAlpha(Theme_colors.fg_color, 0.3))
 		color_count = color_count + 1
-		color_count = color_count + PushButtonColors()
+		color_count = color_count + PushButtonColors(nil, not_focused_dim)
 		color_count = color_count + PushFrameColors()
 		ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, Theme_colors.accent_color)
 		color_count = color_count + 1
 		color_count = color_count + PushResizeGripColors()
-		color_count = color_count + PushScrollbarColors(mode_color)
+		color_count = color_count + PushScrollbarColors(mode_color, not_focused_dim)
 
 		if ImGui.BeginTabBar(ctx, "##tabs") then
 			if CheckProjectChanged() then
@@ -1633,7 +1672,7 @@ local function loop()
 			end
 
 			------------------------------- TRACK LIST TAB
-			ImGui.SetNextItemShortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_Period) -- TODO: notate or do toggle
+			ImGui.SetNextItemShortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_Period)
 			if ImGui.BeginTabItem(ctx, "Track list") then
 				HandleTrackListKeyCommands()
 				--------------------------- WINDOW SIZING
@@ -1684,12 +1723,12 @@ local function loop()
 					local _, avail_height = ImGui.GetContentRegionAvail(ctx)
 					RenderMainTrackTable(avail_height - footer_row_height)
 
-					-- COLLAPSE/EXPAND ALL BUTTONS
+					-- COLLAPSE/EXPAND ALL BUTTONS -- right aligned
 					ImGui.BeginGroup(ctx)
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 1)
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 7)
-					local available_width = ImGui.GetContentRegionAvail(ctx)
-					local dummy_width = available_width
+					local available_child_width = ImGui.GetContentRegionAvail(ctx)
+					local dummy_width = available_child_width
 						- ImGui.CalcTextSize(ctx, "⊟", nil, nil) * 2
 						- ImGui.GetStyleVar(ctx, ImGui.StyleVar_FramePadding) * 4
 						- ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
@@ -1697,6 +1736,7 @@ local function loop()
 					ImGui.Dummy(ctx, dummy_width, 0)
 					ImGui.SameLine(ctx)
 
+					-- COLLAPSE ALL
 					if ImGui.Button(ctx, "⊟") then
 						ExpandCollapseAll(false)
 					end
@@ -1704,6 +1744,7 @@ local function loop()
 
 					ImGui.SameLine(ctx)
 
+					-- EXPAND ALL
 					if ImGui.Button(ctx, "⊞") then
 						ExpandCollapseAll(true)
 					end
@@ -1728,8 +1769,8 @@ local function loop()
 					local spacing_x = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
 					local capture_button_width = 20
 
-					-- Q: COSMETIC -- find better icon/label
-					-- ALL BUTTON -- TODO: ⛯
+					-- Q: COSMETIC -- find better icon/label ⛯
+					-- ALL BUTTON
 					-- ImGui.PushStyleColor(ctx, ImGui.Col_Text, Theme_colors.accent_text_color)
 					if ImGui.Button(ctx, "ALL", available_width - capture_button_width - spacing_x, 0) then
 						RestoreAllState()
@@ -1744,7 +1785,7 @@ local function loop()
 
 					ImGui.SameLine(ctx)
 
-					-- CAPTURE BUTTON -- TODO: ◉◎
+					-- CAPTURE BUTTON -- Q: ◉◎
 					CaptureButton(capture_button_width)
 					ImGui.PopStyleVar(ctx, 1) -- item spacing-x 2
 				end
@@ -1758,7 +1799,7 @@ local function loop()
 					end
 					ImGui.SetItemTooltip(ctx, "Show only selected tracks in Arrange view and Mixer (" .. CTRL .. "+F)")
 
-					-- SOLO SELECTED -- TODO: Ⓢ🅢
+					-- SOLO SELECTED -- Q: Ⓢ🅢
 					if solo_selected then
 						ImGui.PushStyleColor(ctx, ImGui.Col_Text, Theme_colors.alert_color)
 						ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, Theme_colors.alert_color)
@@ -1897,13 +1938,27 @@ local function loop()
 
 		ImGui.End(ctx)
 	end -- if visible
-	if open then
+	if open and not quit then
 		reaper.defer(loop)
+	end
+end
+
+local function SavePersistentVars()
+	reaper.SetExtState(ext_name, "last_alt_click", value and "1" or "0", false)
+
+	if last_tc_ref then
+		local _, guid = reaper.GetSetMediaTrackInfo_String(last_tc_ref, "GUID", "", false)
+		reaper.SetExtState(ext_name, "last_tc_guid", guid, false)
+	end
+	if last_main_click_ref then
+		local _, guid = reaper.GetSetMediaTrackInfo_String(last_main_click_ref, "GUID", "", false)
+		reaper.SetExtState(ext_name, "last_main_click_guid", guid, false)
 	end
 end
 
 local function Init()
 	CaptureCurrentTheme()
+	-- Load options
 	use_track_colors = LoadBoolState("use_track_colors", use_track_colors)
 	default_to_focus_mode = LoadBoolState("default_to_focus_mode", default_to_focus_mode)
 	show_mcp_only_tracks = LoadBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
@@ -1911,9 +1966,18 @@ local function Init()
 	only_folder_parents = LoadBoolState("only_folder_parents", only_folder_parents)
 	hide_options = LoadBoolState("hide_options", hide_options)
 	hide_all_button = LoadBoolState("hide_all_button", hide_all_button)
+
+	-- Load persisting vars
+	LoadBoolState("last_alt_click", last_alt_click)
+	local last_main_click_guid = LoadState("last_main_click_guid", nil) -- Q: convert to GetTrackFromExtState?
+	last_main_click_ref = reaper.BR_GetMediaTrackByGUID(0, last_main_click_guid)
+	local last_tc_guid = LoadState("last_tc_guid", nil)
+	last_tc_ref = reaper.BR_GetMediaTrackByGUID(0, last_tc_guid)
+
 	InitProject()
 end
 
--- reaper.set_action_options(1|2) -- auto-terminate, re-launch -- FIXME: not ideal, last alt-click and track_ref are not preserved
+reaper.set_action_options(1 | 2) -- auto-terminate, re-launch
 Init()
 reaper.defer(loop)
+reaper.atexit(SavePersistentVars)
