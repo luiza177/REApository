@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="a3321f762f371ec9d9357e323c5a21e48d4a8f9b">
+<index version="1" name="Luiza177's REApository" commit="1677123955fb34ddb9ba2f7b103f1ad85276f0f5">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -109,8 +109,7 @@
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Adapts to your theme It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim. And, of course, add some bells and whistles.\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Roadmap:\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Allow drag-select\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Search\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Allow focusing back and forth (if possible)\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Search\sa180\par}
 }
 ]]></description>
       </metadata>
@@ -260,6 +259,20 @@
         <changelog><![CDATA[- Major performance improvement on track focus
 - Better accent color selection on more themes]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/a3321f762f371ec9d9357e323c5a21e48d4a8f9b/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.5.2" author="Luiza177" time="2026-09-22T13:59:38Z">
+        <changelog><![CDATA[- Main list scroll now following keyboard cursor
+- Supports back and forth focusing with shortcuts (workaround): Esc to focus back arrange view, and your shortcut of choice (needs more testing)
+- Added shortcuts for activating Options tab (Ctrl/Cmd + ,) and Track List tab (Ctrl/Cmd + .)
+- Added quit shortcut (Ctrl/Cmd + W)
+- Changed Alt/Opt-based shortcuts to Ctrl/Cmd to avoid clashing with Windows menu
+- Solo mode = Ctrl/Cmd + Alt/Opt + S
+- Show MCP-only in list = Ctrl/Cmd + Shift + M
+- Show Hidden tracks in list = Ctrl/Cmd + Shift + H
+- Show only Folder parents in list = Ctrl/Cmd + Shift + F
+- Expand all = Ctrl/Cmd + Shift + E
+- Collapse all = Ctrl/Cmd + Shift + C]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/1677123955fb34ddb9ba2f7b103f1ad85276f0f5/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
