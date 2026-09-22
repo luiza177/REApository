@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.5.2
+-- @version 0.5.4
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -18,20 +18,10 @@
 --   It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim.
 --   And, of course, add some bells and whistles.
 --   ## Roadmap:
---   - Allow drag-select
 --   - Search
+--   - Allow drag-select
 -- @changelog
---   - Main list scroll now following keyboard cursor
---   - Supports back and forth focusing with shortcuts (workaround): Esc to focus back arrange view, and your shortcut of choice (needs more testing)
---   - Added shortcuts for activating Options tab (Ctrl/Cmd + ,) and Track List tab (Ctrl/Cmd + .)
---   - Added quit shortcut (Ctrl/Cmd + W)
---   - Changed Alt/Opt-based shortcuts to Ctrl/Cmd to avoid clashing with Windows menu
---   - Solo mode = Ctrl/Cmd + Alt/Opt + S
---   - Show MCP-only in list = Ctrl/Cmd + Shift + M
---   - Show Hidden tracks in list = Ctrl/Cmd + Shift + H
---   - Show only Folder parents in list = Ctrl/Cmd + Shift + F
---   - Expand all = Ctrl/Cmd + Shift + E
---   - Collapse all = Ctrl/Cmd + Shift + C
+--   - fixed expand all shortcut
 -- @provides
 --   [main] .
 
@@ -1415,7 +1405,7 @@ local function HandleGlobalShortcuts()
 	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Mod_Shift | ImGui.Key_C) then
 		ExpandCollapseAll(false) -- collapse
 	end
-	if ImGui.Shortcut(ctx, ImGui.Mod_Alt | ImGui.Mod_Shift | ImGui.Key_E) then
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Mod_Shift | ImGui.Key_E) then
 		ExpandCollapseAll(true) -- expand
 	end
 end
