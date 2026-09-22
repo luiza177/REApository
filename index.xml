@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="1677123955fb34ddb9ba2f7b103f1ad85276f0f5">
+<index version="1" name="Luiza177's REApository" commit="e5d88b156164c2a11b4287271f9f3cbd53721345">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -108,8 +108,8 @@
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Alt/Opt click or turn on Solo mode for soloing\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Adapts to your theme It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim. And, of course, add some bells and whistles.\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Roadmap:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Allow drag-select\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Search\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Search\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Allow drag-select\sa180\par}
 }
 ]]></description>
       </metadata>
@@ -273,6 +273,10 @@
 - Expand all = Ctrl/Cmd + Shift + E
 - Collapse all = Ctrl/Cmd + Shift + C]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/1677123955fb34ddb9ba2f7b103f1ad85276f0f5/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.5.4" author="Luiza177" time="2026-09-22T14:05:39Z">
+        <changelog><![CDATA[- fixed expand all shortcut]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/e5d88b156164c2a11b4287271f9f3cbd53721345/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
