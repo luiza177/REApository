@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.5.4
+-- @version 0.6.0
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -18,10 +18,9 @@
 --   It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim.
 --   And, of course, add some bells and whistles.
 --   ## Roadmap:
---   - Search
 --   - Allow drag-select
 -- @changelog
---   - fixed expand all shortcut
+--   - Added Search feature!
 -- @provides
 --   [main] .
 
@@ -70,6 +69,7 @@ local hide_options = false
 local hide_all_button = false
 local pin_buttons_hover_state = {}
 local use_track_colors = true
+local search_popup_height = 100
 
 ----------------------------------------------------------------------------
 -- CHECKBOX STUFF
@@ -84,6 +84,9 @@ local default_to_focus_mode = false
 ---------------------------------------------------------------------------
 -- CONFIG VARS
 ImGui.SetConfigVar(ctx, ImGui.ConfigVar_HoverStationaryDelay, 0.6)
+local search_filter = ImGui.CreateTextFilter()
+ImGui.Attach(ctx, search_filter)
+local search_index = nil
 
 ---------------------------------------------------------------------------
 -- OS stuff
@@ -121,8 +124,8 @@ local function FocusArrangeView()
 	end
 end
 
-local function GetTrackName(track, i)
-	local i = i or nil
+local function GetTrackName(track, index)
+	local i = index or nil
 	local _, name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
 	if name == "" then
 		name = "Track " .. i + 1
@@ -140,6 +143,7 @@ local function GatherAllTrackInfo()
 	local depth = 0
 	pinned_tracks = {}
 	main_tracks = {}
+	local parents = {}
 
 	for i = 0, reaper.CountTracks(0) - 1 do
 		local track_ref = reaper.GetTrack(0, i)
@@ -166,13 +170,14 @@ local function GatherAllTrackInfo()
 			guid = guid,
 			name = name,
 			number = number,
-			depth = depth,
+			depth = depth, -- NOTE: might not be needed if parents
 			is_folder = is_folder,
 			is_collapsed = is_collapsed,
 			color = color,
 			show_tcp = show_tcp,
 			show_mcp = show_mcp,
 			is_pinned = is_pinned,
+			parents = { table.unpack(parents) },
 		}
 
 		if is_pinned then
@@ -187,6 +192,13 @@ local function GatherAllTrackInfo()
 		end
 
 		depth = depth + depth_change
+		if is_folder then
+			parents[#parents + 1] = track_info
+		elseif depth_change < 0 then
+			for _ = 1, -depth_change do
+				parents[#parents] = nil
+			end
+		end
 	end
 end
 
@@ -194,14 +206,11 @@ local function ReadProjStoredState(track)
 	local retval, value = reaper.GetProjExtState(0, ext_name, track.guid)
 	if retval == 1 then
 		local show_tcp_str, show_mcp_str = value:match("([^;]+);([^;]+)")
-		-- reaper.ShowConsoleMsg("\nreading value for " .. track.name .. ", GUID: " .. track.guid .. ", show TCP: " .. show_tcp_str .. ", show MCP: " .. show_mcp_str)
 		all_snapshot[track.track_ref] = {
 			show_tcp = tonumber(show_tcp_str),
 			show_mcp = tonumber(show_mcp_str),
 			guid = track.guid,
 		}
-		-- else
-		-- reaper.ShowConsoleMsg("\nNo value for " .. track.name .. ", GUID: " .. track.guid .. " was found!")
 	end
 	return retval
 end
@@ -1307,6 +1316,9 @@ local function InitProject()
 	InitPinnedTracks()
 	show_pinned = CountKeys(marked_pinned_tracks) > 0 and true or false
 	InitFocusMode()
+
+	last_tc_ref = nil
+	tc_cursor = nil
 end
 
 local function CheckProjectChanged()
@@ -1431,12 +1443,12 @@ end
 local function CompileFullListWithFilters()
 	local skip_depth = nil
 	local full_list = {}
-	for i, pt in ipairs(pinned_tracks) do
+	for _, pt in ipairs(pinned_tracks) do
 		if ShouldIncludeTrack(pt, false) then
 			full_list[#full_list + 1] = pt
 		end
 	end
-	for i, mt in ipairs(main_tracks) do
+	for _, mt in ipairs(main_tracks) do
 		if not skip_depth and mt.is_folder and mt.is_collapsed then
 			skip_depth = mt.depth + 1
 		elseif skip_depth and mt.depth < skip_depth then
@@ -1485,7 +1497,9 @@ local function ResolveCursorIndex(list)
 		local closest_track = tc_cursor and FindClosestTrackInList(list, tc_cursor.number)
 		if closest_track then
 			tc_cursor = closest_track
-			last_tc_ref = tc_cursor.track_ref
+			if tc_cursor then
+				last_tc_ref = tc_cursor.track_ref
+			end
 			return FindIndexOfTrack(list, tc_cursor)
 		end
 	end
@@ -1495,7 +1509,9 @@ local function ResolveCursorIndex(list)
 		local track_ref = reaper.GetSelectedTrack(0, 0)
 		local index = FindIndexOfTrack(list, track_ref)
 		tc_cursor = list[index]
-		last_tc_ref = tc_cursor.track_ref
+		if tc_cursor then
+			last_tc_ref = tc_cursor.track_ref
+		end
 		return index
 	end
 
@@ -1517,6 +1533,8 @@ local function ResolveCursorIndex(list)
 end
 
 local function FindTrackParentIndex(list, current_index, current_depth, is_on_pinned_track)
+	-- TODO: change to parents[#parents] or is_pinned
+	-- if not is_pinned, then find is_pinned, else return 1
 	local i = current_index
 	while i > 1 do
 		i = i - 1
@@ -1618,6 +1636,107 @@ local function HandleTrackListKeyCommands()
 	end
 end
 
+----------------------------------------------------------------
+-- SEARCH
+local search_mcp_only = true
+local search_hidden = true
+
+local function SelectSearchEntry(entry)
+	if IsMCPOnly(entry.track_ref) then
+		SetShowHideMCPOnly(true)
+	end
+	if IsArchived(entry.track_ref) then
+		SetShowHideArchived(true)
+	end
+	tc_cursor = entry
+	last_tc_ref = entry.track_ref
+	tc_cursor_moved_this_frame = true
+	reaper.SetOnlyTrackSelected(entry.track_ref)
+	ImGui.TextFilter_Clear(search_filter)
+	search_index = nil
+end
+
+local function RenderTrackBreadcrumbs(track)
+	for _, parent in ipairs(track.parents) do
+		ImGui.TextColored(ctx, SetAlpha(Theme_colors.fg_color, 0.8), parent.name)
+		ImGui.SameLine(ctx)
+		ImGui.TextColored(ctx, SetAlpha(Theme_colors.text_color, 0.66), " > ")
+		ImGui.SameLine(ctx)
+	end
+end
+
+local function GetListEntryString(track)
+	local str = ""
+	if #track.parents > 0 then
+		for _, parent in ipairs(track.parents) do
+			str = str .. parent.name .. " > " -- Q: actually include the delimiter?
+		end
+	end
+	return str .. track.name
+end
+
+local function CompileSearchList()
+	local list = {}
+	for _, pt in ipairs(pinned_tracks) do
+		list[#list + 1] = pt
+	end
+	for _, mt in ipairs(main_tracks) do
+		-- if (search_mcp_only or not IsMCPOnly(mt.track_ref)) or (search_hidden or not IsArchived(mt.track_ref)) then
+		list[#list + 1] = mt
+		-- end
+	end
+	return list
+end
+
+local function GetFilteredSearchList()
+	local filtered = {}
+	for _, entry in ipairs(CompileSearchList()) do
+		if ImGui.TextFilter_PassFilter(search_filter, GetListEntryString(entry)) then
+			filtered[#filtered + 1] = entry
+		end
+	end
+	return filtered
+end
+
+local function RenderSearchList()
+	-- local list = CompileSearchList()
+	local filtered_list = GetFilteredSearchList()
+	local count = #filtered_list
+
+	if count == 0 then
+		search_index = nil
+	else
+		if search_index == nil or search_index > count then
+			search_index = 1
+		end
+		-- TODO: add ctrl + up/down for search navigation
+		if ImGui.IsKeyPressed(ctx, ImGui.Key_DownArrow, true) then -- Q: change to Shortcut?
+			search_index = (search_index % count) + 1
+		elseif ImGui.IsKeyPressed(ctx, ImGui.Key_UpArrow, true) then
+			search_index = ((search_index - 2) % count) + 1
+		end
+		if ImGui.IsKeyPressed(ctx, ImGui.Key_Enter, false) then
+			SelectSearchEntry(filtered_list[search_index])
+			return
+		end
+		if ImGui.IsKeyPressed(ctx, ImGui.Key_Escape, false) then
+			ImGui.TextFilter_Clear(search_filter)
+		end
+	end
+	-- TODO: needs padding
+
+	for i, entry in ipairs(filtered_list) do
+		local is_selected = search_index == i
+		RenderTrackBreadcrumbs(entry)
+		if ImGui.Selectable(ctx, entry.name, is_selected, ImGui.SelectableFlags_SpanAllColumns) then
+			SelectSearchEntry(entry)
+		end
+		if is_selected then
+			ImGui.SetScrollHereY(ctx, 1) -- TODO: adjust scroll ratio
+		end
+	end
+end
+
 --==============================================================
 local function loop()
 	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, ROUNDING)
@@ -1625,7 +1744,7 @@ local function loop()
 
 	local color_count = PushInitColors()
 
-	local window_flags = ImGui.WindowFlags_NoCollapse
+	local window_flags = ImGui.WindowFlags_NoCollapse | ImGui.WindowFlags_NoNav
 	local visible, open = ImGui.Begin(ctx, "Track Compass", true, window_flags)
 
 	ImGui.PopStyleVar(ctx, 2) -- window rounding / padding
@@ -1664,7 +1783,9 @@ local function loop()
 			------------------------------- TRACK LIST TAB
 			ImGui.SetNextItemShortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_Period)
 			if ImGui.BeginTabItem(ctx, "Track list") then
-				HandleTrackListKeyCommands()
+				if not ImGui.TextFilter_IsActive(search_filter) then
+					HandleTrackListKeyCommands()
+				end
 				--------------------------- WINDOW SIZING
 				local NUM_BELOW_ELEMENTS = 4 -- or 0 or 1 if not hide_options
 				if hide_options then
@@ -1693,7 +1814,17 @@ local function loop()
 				end
 
 				-- -FLT_MIN = right align
-				if ImGui.BeginChild(ctx, "##tracklist", -FLT_MIN, list_height, ImGui.ChildFlags_FrameStyle) then
+				if
+					ImGui.BeginChild(
+						ctx,
+						"##tracklist",
+						-FLT_MIN,
+						list_height,
+						ImGui.ChildFlags_FrameStyle,
+						ImGui.WindowFlags_NoNav
+					)
+				then
+					local _, child_pos_y = ImGui.GetWindowPos(ctx)
 					ImGui.PopStyleVar(ctx, 1) -- framepadding 0 for child
 					ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize, 1)
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 2)
@@ -1713,18 +1844,48 @@ local function loop()
 					local _, avail_height = ImGui.GetContentRegionAvail(ctx)
 					RenderMainTrackTable(avail_height - footer_row_height)
 
-					-- COLLAPSE/EXPAND ALL BUTTONS -- right aligned
-					ImGui.BeginGroup(ctx)
+					-- SEARCHBOX
+					ImGui.BeginGroup(ctx) -- Q: is this necessary?
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 1)
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 7)
+
 					local available_child_width = ImGui.GetContentRegionAvail(ctx)
-					local dummy_width = available_child_width
+					local search_input_width = available_child_width
 						- ImGui.CalcTextSize(ctx, "⊟", nil, nil) * 2
 						- ImGui.GetStyleVar(ctx, ImGui.StyleVar_FramePadding) * 4
 						- ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
 
-					ImGui.Dummy(ctx, dummy_width, 0)
+					ImGui.SetNextItemShortcut(ctx, ImGui.Key_Slash, ImGui.InputFlags_RouteGlobal) -- FIXME: doesn't work when different areas are focused
+					ImGui.TextFilter_Draw(search_filter, ctx, "##search_input", search_input_width)
+					local search_min_x, search_min_y = ImGui.GetItemRectMin(ctx) -- must be called right after the widget
+
+					-- SEARCH LIST RESULTS
+					if ImGui.TextFilter_IsActive(search_filter) then
+						local max_height = math.max(search_min_y - child_pos_y - 4, 40) -- room between child top and search box
+						local popup_height = math.min(search_popup_height, max_height)
+
+						ImGui.SetNextWindowPos(ctx, search_min_x, search_min_y, ImGui.Cond_Always, 0, 1) -- pivot (0,1): grow upward
+						ImGui.SetNextWindowSize(ctx, available_child_width, popup_height, ImGui.Cond_Always)
+
+						local popup_flags = ImGui.WindowFlags_NoTitleBar
+							| ImGui.WindowFlags_NoResize
+							| ImGui.WindowFlags_NoSavedSettings
+							| ImGui.WindowFlags_NoMove
+							| ImGui.WindowFlags_NoFocusOnAppearing
+							| ImGui.WindowFlags_AlwaysAutoResize
+							| ImGui.WindowFlags_NoNav
+						if ImGui.Begin(ctx, "##search_results", true, popup_flags) then
+							local _, content_start_y = ImGui.GetCursorScreenPos(ctx)
+							RenderSearchList()
+							local _, content_end_y = ImGui.GetCursorScreenPos(ctx)
+							search_popup_height =
+								math.min(math.max(content_end_y - content_start_y + 16, 30), max_height)
+						end
+						ImGui.End(ctx)
+					end
+
 					ImGui.SameLine(ctx)
+					-- TODO: add clear button, and clear on Esc
 
 					-- COLLAPSE ALL
 					if ImGui.Button(ctx, "⊟") then
