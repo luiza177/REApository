@@ -1638,30 +1638,61 @@ end
 
 ----------------------------------------------------------------
 -- SEARCH
-local search_mcp_only = true
-local search_hidden = true
+-- TEST: folder parents only mode
+-- TODO: option to focus search on startup
+local search_index_moved_this_frame = false
+-- local search_mcp_only = true
+-- local search_hidden = true
 
 local function SelectSearchEntry(entry)
+	reaper.PreventUIRefresh(2)
+
 	if IsMCPOnly(entry.track_ref) then
 		SetShowHideMCPOnly(true)
 	end
 	if IsArchived(entry.track_ref) then
 		SetShowHideArchived(true)
 	end
+
+	-- uncollapse parent folders
+	if #entry.parents > 0 then -- TEST: folder parents only mode
+		for _, parent in ipairs(entry.parents) do
+			reaper.SetMediaTrackInfo_Value(parent.track_ref, "I_FOLDERCOMPACT", 0)
+		end
+	end
+
 	tc_cursor = entry
 	last_tc_ref = entry.track_ref
 	tc_cursor_moved_this_frame = true
+
 	reaper.SetOnlyTrackSelected(entry.track_ref)
+
 	ImGui.TextFilter_Clear(search_filter)
 	search_index = nil
+
+	reaper.TrackList_AdjustWindows(false)
+	reaper.PreventUIRefresh(-2)
+end
+
+local function RenderBreadcrumb(parent)
+	ImGui.TextColored(ctx, SetAlpha(Theme_colors.fg_color, 0.8), parent.name)
+	ImGui.SameLine(ctx)
+	ImGui.TextColored(ctx, SetAlpha(Theme_colors.text_color, 0.5), " > ")
+	ImGui.SameLine(ctx)
 end
 
 local function RenderTrackBreadcrumbs(track)
-	for _, parent in ipairs(track.parents) do
-		ImGui.TextColored(ctx, SetAlpha(Theme_colors.fg_color, 0.8), parent.name)
-		ImGui.SameLine(ctx)
-		ImGui.TextColored(ctx, SetAlpha(Theme_colors.text_color, 0.66), " > ")
-		ImGui.SameLine(ctx)
+	if #track.parents > 0 then
+		if #track.parents > 1 then
+			RenderBreadcrumb(track.parents[1]) -- top level parent
+		end
+		if #track.parents > 2 then
+			ImGui.TextColored(ctx, SetAlpha(Theme_colors.fg_color, 0.6), "...")
+			ImGui.SameLine(ctx)
+			ImGui.TextColored(ctx, SetAlpha(Theme_colors.text_color, 0.5), " > ")
+			ImGui.SameLine(ctx)
+		end
+		RenderBreadcrumb(track.parents[#track.parents]) -- immediate parent
 	end
 end
 
@@ -1699,39 +1730,54 @@ local function GetFilteredSearchList()
 end
 
 local function RenderSearchList()
-	-- local list = CompileSearchList()
 	local filtered_list = GetFilteredSearchList()
 	local count = #filtered_list
+	local ctrl_held = (ImGui.GetKeyMods(ctx) & ImGui.Mod_Ctrl) ~= 0
 
 	if count == 0 then
 		search_index = nil
+		ImGui.Text(ctx, " ")
+		ImGui.SameLine(ctx)
+		ImGui.TextColored(ctx, SetAlpha(Theme_colors.text_color, 0.5), "No matching tracks")
 	else
 		if search_index == nil or search_index > count then
 			search_index = 1
 		end
-		-- TODO: add ctrl + up/down for search navigation
-		if ImGui.IsKeyPressed(ctx, ImGui.Key_DownArrow, true) then -- Q: change to Shortcut?
+
+		if
+			ImGui.IsKeyPressed(ctx, ImGui.Key_DownArrow, true)
+			or (ctrl_held and ImGui.IsKeyPressed(ctx, ImGui.Key_J, true))
+		then
 			search_index = (search_index % count) + 1
-		elseif ImGui.IsKeyPressed(ctx, ImGui.Key_UpArrow, true) then
+			search_index_moved_this_frame = true
+		elseif
+			ImGui.IsKeyPressed(ctx, ImGui.Key_UpArrow, true)
+			or (ctrl_held and ImGui.IsKeyPressed(ctx, ImGui.Key_K, true))
+		then
 			search_index = ((search_index - 2) % count) + 1
+			search_index_moved_this_frame = true
 		end
+
 		if ImGui.IsKeyPressed(ctx, ImGui.Key_Enter, false) then
 			SelectSearchEntry(filtered_list[search_index])
 			return
 		end
+
 		if ImGui.IsKeyPressed(ctx, ImGui.Key_Escape, false) then
 			ImGui.TextFilter_Clear(search_filter)
 		end
 	end
-	-- TODO: needs padding
 
 	for i, entry in ipairs(filtered_list) do
 		local is_selected = search_index == i
+		ImGui.Text(ctx, " ")
+		ImGui.SameLine(ctx) -- for artificial padding
 		RenderTrackBreadcrumbs(entry)
+		-- Q: use track colors here too?
 		if ImGui.Selectable(ctx, entry.name, is_selected, ImGui.SelectableFlags_SpanAllColumns) then
 			SelectSearchEntry(entry)
 		end
-		if is_selected then
+		if is_selected and search_index_moved_this_frame then
 			ImGui.SetScrollHereY(ctx, 1) -- TODO: adjust scroll ratio
 		end
 	end
@@ -1789,10 +1835,10 @@ local function loop()
 				--------------------------- WINDOW SIZING
 				local NUM_BELOW_ELEMENTS = 4 -- or 0 or 1 if not hide_options
 				if hide_options then
-					NUM_BELOW_ELEMENTS = NUM_BELOW_ELEMENTS - 3
+					NUM_BELOW_ELEMENTS = NUM_BELOW_ELEMENTS - 3 -- focus view, solo, show pinned checkboxes
 				end
 				if hide_all_button then
-					NUM_BELOW_ELEMENTS = NUM_BELOW_ELEMENTS - 1
+					NUM_BELOW_ELEMENTS = NUM_BELOW_ELEMENTS - 1 -- ALL, capture buttons row
 				end
 				local footer_height = ImGui.GetFrameHeightWithSpacing(ctx) * NUM_BELOW_ELEMENTS
 				local list_height = -footer_height
@@ -1824,8 +1870,9 @@ local function loop()
 						ImGui.WindowFlags_NoNav
 					)
 				then
-					local _, child_pos_y = ImGui.GetWindowPos(ctx)
 					ImGui.PopStyleVar(ctx, 1) -- framepadding 0 for child
+
+					local _, child_pos_y = ImGui.GetWindowPos(ctx)
 					ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize, 1)
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 2)
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 3)
@@ -1844,28 +1891,63 @@ local function loop()
 					local _, avail_height = ImGui.GetContentRegionAvail(ctx)
 					RenderMainTrackTable(avail_height - footer_row_height)
 
-					-- SEARCHBOX
+					------------------------------ SEARCHBOX
 					ImGui.BeginGroup(ctx) -- Q: is this necessary?
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_ItemSpacing, 1)
 					ImGui.PushStyleVarX(ctx, ImGui.StyleVar_FramePadding, 7)
 
 					local available_child_width = ImGui.GetContentRegionAvail(ctx)
 					local search_input_width = available_child_width
-						- ImGui.CalcTextSize(ctx, "⊟", nil, nil) * 2
+						- ImGui.CalcTextSize(ctx, "⊟", nil, nil) * 2 -- Q: * 3 if clear search button
 						- ImGui.GetStyleVar(ctx, ImGui.StyleVar_FramePadding) * 4
 						- ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
 
-					ImGui.SetNextItemShortcut(ctx, ImGui.Key_Slash, ImGui.InputFlags_RouteGlobal) -- FIXME: doesn't work when different areas are focused
+					ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg, SetAlpha(Theme_colors.fg_color, 0.1))
+					ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgActive, SetAlpha(Theme_colors.fg_color, 0.4))
+					ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgHovered, SetAlpha(Theme_colors.fg_color, 0.2))
+
+					ImGui.SetNextItemShortcut(ctx, ImGui.Key_Slash, ImGui.InputFlags_RouteGlobal)
 					ImGui.TextFilter_Draw(search_filter, ctx, "##search_input", search_input_width)
 					local search_min_x, search_min_y = ImGui.GetItemRectMin(ctx) -- must be called right after the widget
 
-					-- SEARCH LIST RESULTS
+					-- SEARCHBOX PLACEHOLDER
+					if not ImGui.IsItemFocused(ctx) and not ImGui.TextFilter_IsActive(search_filter) then
+						local draw_list = ImGui.GetWindowDrawList(ctx)
+						ImGui.DrawList_AddText(
+							draw_list,
+							search_min_x + 4, -- TODO: replace magic number
+							search_min_y + 2, -- TODO: replace magic number
+							SetAlpha(Theme_colors.text_color, 0.5),
+							"Search tracks..."
+						)
+					end
+
+					ImGui.PopStyleColor(ctx, 3) -- frame bg/active/hover text input
+
+					-------------------------------- SEARCH LIST RESULTS
 					if ImGui.TextFilter_IsActive(search_filter) then
-						local max_height = math.max(search_min_y - child_pos_y - 4, 40) -- room between child top and search box
+						local max_height = math.max(
+							search_min_y - child_pos_y - ImGui.GetStyleVar(ctx, ImGui.StyleVar_FrameBorderSize),
+							ImGui.GetFrameHeightWithSpacing(ctx)
+						) -- room between child top and search box
 						local popup_height = math.min(search_popup_height, max_height)
 
-						ImGui.SetNextWindowPos(ctx, search_min_x, search_min_y, ImGui.Cond_Always, 0, 1) -- pivot (0,1): grow upward
+						ImGui.SetNextWindowPos(
+							ctx,
+							search_min_x + ImGui.GetStyleVar(ctx, ImGui.StyleVar_FrameBorderSize),
+							search_min_y,
+							ImGui.Cond_Always,
+							0,
+							1
+						) -- pivot (0,1): grow upward
 						ImGui.SetNextWindowSize(ctx, available_child_width, popup_height, ImGui.Cond_Always)
+
+						ImGui.PushStyleVarX(ctx, ImGui.StyleVar_WindowPadding, 2)
+						ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, ROUNDING)
+						ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, Darken(Theme_colors.bg2_color, 0.1))
+						ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(Theme_colors.bg_color, 0.3)) -- TODO: make sure folder parents are always legible
+						ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(Theme_colors.bg_color, 0.4))
+						ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(Theme_colors.bg_color, 0.5))
 
 						local popup_flags = ImGui.WindowFlags_NoTitleBar
 							| ImGui.WindowFlags_NoResize
@@ -1874,18 +1956,37 @@ local function loop()
 							| ImGui.WindowFlags_NoFocusOnAppearing
 							| ImGui.WindowFlags_AlwaysAutoResize
 							| ImGui.WindowFlags_NoNav
+
 						if ImGui.Begin(ctx, "##search_results", true, popup_flags) then
+							local _, window_padding_y = ImGui.GetStyleVar(ctx, ImGui.StyleVar_WindowPadding)
 							local _, content_start_y = ImGui.GetCursorScreenPos(ctx)
+
 							RenderSearchList()
+
 							local _, content_end_y = ImGui.GetCursorScreenPos(ctx)
-							search_popup_height =
-								math.min(math.max(content_end_y - content_start_y + 16, 30), max_height)
+							search_popup_height = math.min(
+								math.max(
+									content_end_y - content_start_y + window_padding_y * 2,
+									ImGui.GetFrameHeightWithSpacing(ctx)
+								),
+								max_height
+							)
 						end
+						ImGui.PopStyleColor(ctx, 4) -- window bg bg, header fg, header hovered fg, headeractive fg
+						ImGui.PopStyleVar(ctx, 2) -- padding x, window rounding rounding
 						ImGui.End(ctx)
 					end
 
 					ImGui.SameLine(ctx)
-					-- TODO: add clear button, and clear on Esc
+
+					----------------------- SEARCHBOX ROW BUTTONS
+
+					-- Q: add clear button?
+					-- if ImGui.Button(ctx, "x") then
+					-- 	ImGui.TextFilter_Clear(search_filter)
+					-- end
+					-- ImGui.SameLine(ctx)
+					-- ImGui.SetItemTooltip(ctx, "Clear")
 
 					-- COLLAPSE ALL
 					if ImGui.Button(ctx, "⊟") then
