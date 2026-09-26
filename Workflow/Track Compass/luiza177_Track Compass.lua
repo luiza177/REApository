@@ -617,6 +617,22 @@ local function SetArchived(track_ref)
 	end
 end
 
+-- UI
+local function ScrollHereY(compensate_frame_height)
+	local _, row_min_y = ImGui.GetItemRectMin(ctx)
+	local _, row_max_y = ImGui.GetItemRectMax(ctx)
+	local _, win_y = ImGui.GetWindowPos(ctx)
+	local _, win_h = ImGui.GetWindowSize(ctx)
+
+	local frame_height = compensate_frame_height and ImGui.GetFrameHeightWithSpacing(ctx)
+
+	local fully_visible = row_min_y >= win_y and row_max_y <= (win_y + win_h - frame_height)
+
+	if not fully_visible then
+		ImGui.SetScrollHereY(ctx, 0.5)
+	end
+end
+
 -- CONTEXT MENU
 local function GetTrackContextMenuId(track)
 	return "track" .. track.number .. "contextmenu"
@@ -816,7 +832,7 @@ local function HandleNavClick(track)
 		SoloExclusive()
 	end
 
-	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
+	-- reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 end
 
 -- UI
@@ -1139,18 +1155,7 @@ local function RenderMainTrackTable(height)
 
 			-- SET Y SCROLL
 			if tc_cursor_moved_this_frame and tc_cursor and tc_cursor.track_ref == mt.track_ref then
-				local _, row_min_y = ImGui.GetItemRectMin(ctx)
-				local _, row_max_y = ImGui.GetItemRectMax(ctx)
-				local _, win_y = ImGui.GetWindowPos(ctx)
-				local _, win_h = ImGui.GetWindowSize(ctx)
-
-				local frame_height = ImGui.GetFrameHeightWithSpacing(ctx)
-
-				local fully_visible = row_min_y >= win_y and row_max_y <= (win_y + win_h - frame_height)
-
-				if not fully_visible then
-					ImGui.SetScrollHereY(ctx, 0.5)
-				end
+				ScrollHereY(true)
 			end
 			local pin_was_hovered = pin_buttons_hover_state[mt.track_ref] == true
 			local context_menu_open = ImGui.IsPopupOpen(ctx, GetTrackContextMenuId(mt))
@@ -1778,7 +1783,7 @@ local function RenderSearchList()
 			SelectSearchEntry(entry)
 		end
 		if is_selected and search_index_moved_this_frame then
-			ImGui.SetScrollHereY(ctx, 1) -- TODO: adjust scroll ratio
+			ScrollHereY(false)
 		end
 	end
 end
@@ -1909,6 +1914,7 @@ local function loop()
 					ImGui.SetNextItemShortcut(ctx, ImGui.Key_Slash, ImGui.InputFlags_RouteGlobal)
 					ImGui.TextFilter_Draw(search_filter, ctx, "##search_input", search_input_width)
 					local search_min_x, search_min_y = ImGui.GetItemRectMin(ctx) -- must be called right after the widget
+					local search_box_hovered = ImGui.IsItemHovered(ctx)
 
 					-- SEARCHBOX PLACEHOLDER
 					if not ImGui.IsItemFocused(ctx) and not ImGui.TextFilter_IsActive(search_filter) then
@@ -1945,9 +1951,9 @@ local function loop()
 						ImGui.PushStyleVarX(ctx, ImGui.StyleVar_WindowPadding, 2)
 						ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, ROUNDING)
 						ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, Darken(Theme_colors.bg2_color, 0.1))
-						ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(Theme_colors.bg_color, 0.3)) -- TODO: make sure folder parents are always legible
-						ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(Theme_colors.bg_color, 0.4))
-						ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(Theme_colors.bg_color, 0.5))
+						ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(Theme_colors.bg_color, 0.5)) -- TODO: make sure folder parents are always legible
+						ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(Theme_colors.bg_color, 0.66))
+						ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(Theme_colors.bg_color, 0.8))
 
 						local popup_flags = ImGui.WindowFlags_NoTitleBar
 							| ImGui.WindowFlags_NoResize
@@ -1957,7 +1963,9 @@ local function loop()
 							| ImGui.WindowFlags_AlwaysAutoResize
 							| ImGui.WindowFlags_NoNav
 
+						local search_results_hovered = false
 						if ImGui.Begin(ctx, "##search_results", true, popup_flags) then
+							search_results_hovered = ImGui.IsWindowHovered(ctx) -- hoveredflags_childwindows?
 							local _, window_padding_y = ImGui.GetStyleVar(ctx, ImGui.StyleVar_WindowPadding)
 							local _, content_start_y = ImGui.GetCursorScreenPos(ctx)
 
@@ -1975,6 +1983,14 @@ local function loop()
 						ImGui.PopStyleColor(ctx, 4) -- window bg bg, header fg, header hovered fg, headeractive fg
 						ImGui.PopStyleVar(ctx, 2) -- padding x, window rounding rounding
 						ImGui.End(ctx)
+
+						if
+							ImGui.IsMouseClicked(ctx, ImGui.MouseButton_Left)
+							and not search_box_hovered
+							and not search_results_hovered
+						then
+							ImGui.TextFilter_Clear(search_filter)
+						end
 					end
 
 					ImGui.SameLine(ctx)
