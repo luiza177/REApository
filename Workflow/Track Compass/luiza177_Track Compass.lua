@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.6.0
+-- @version 0.6.1
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -23,8 +23,7 @@
 --   - Support click-drag-select
 --   - Maybe: track manager features (eg. delete, add, move)
 -- @changelog
---   - Added Search feature!
---   - Fix: all pinned tracks show up, even in "Only folders parents" mode
+--   - Fixed crash on exit on empty proejct
 -- @provides
 --   [main] .
 
@@ -2229,13 +2228,15 @@ end
 local function SavePersistentVars()
 	reaper.SetExtState(ext_name, "last_alt_click", last_alt_click and "1" or "0", false)
 
-	if last_tc_ref then
-		local _, guid = reaper.GetSetMediaTrackInfo_String(last_tc_ref, "GUID", "", false)
-		reaper.SetExtState(ext_name, "last_tc_guid", guid, false)
-	end
-	if last_main_click_ref then
-		local _, guid = reaper.GetSetMediaTrackInfo_String(last_main_click_ref, "GUID", "", false)
-		reaper.SetExtState(ext_name, "last_main_click_guid", guid, false)
+	if reaper.CountTracks(0) > 0 then
+		if last_tc_ref then
+			local _, guid = reaper.GetSetMediaTrackInfo_String(last_tc_ref, "GUID", "", false)
+			reaper.SetExtState(ext_name, "last_tc_guid", guid, false)
+		end
+		if last_main_click_ref then
+			local _, guid = reaper.GetSetMediaTrackInfo_String(last_main_click_ref, "GUID", "", false)
+			reaper.SetExtState(ext_name, "last_main_click_guid", guid, false)
+		end
 	end
 end
 
