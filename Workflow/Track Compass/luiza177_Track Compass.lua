@@ -19,8 +19,12 @@
 --   And, of course, add some bells and whistles.
 --   ## Roadmap:
 --   - Allow drag-select
+--   - Support shift-select
+--   - Support click-drag-select
+--   - Maybe: track manager features (eg. delete, add, move)
 -- @changelog
 --   - Added Search feature!
+--   - Fix: all pinned tracks show up, even in "Only folders parents" mode
 -- @provides
 --   [main] .
 
@@ -469,9 +473,10 @@ local function PushResizeGripColors()
 	return 3
 end
 
-local function PushScrollbarColors(mode_color, dim_diff)
+local function PushScrollbarColors(mode_color, dim_diff, bg_darken)
 	local dim = dim_diff or 0
-	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarBg, SetAlpha(Darken(Theme_colors.bg2_color, 0.1), 0.5))
+	local darken = bg_darken or 0.1
+	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarBg, SetAlpha(Darken(Theme_colors.bg2_color, darken), 0.5))
 	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrab, SetAlpha(mode_color, 0.4 - dim))
 	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabActive, SetAlpha(mode_color, 0.6))
 	ImGui.PushStyleColor(ctx, ImGui.Col_ScrollbarGrabHovered, SetAlpha(Lighten(mode_color, 0.15), 1 - dim))
@@ -624,7 +629,7 @@ local function ScrollHereY(compensate_frame_height)
 	local _, win_y = ImGui.GetWindowPos(ctx)
 	local _, win_h = ImGui.GetWindowSize(ctx)
 
-	local frame_height = compensate_frame_height and ImGui.GetFrameHeightWithSpacing(ctx)
+	local frame_height = compensate_frame_height and ImGui.GetFrameHeightWithSpacing(ctx) or 0
 
 	local fully_visible = row_min_y >= win_y and row_max_y <= (win_y + win_h - frame_height)
 
@@ -687,6 +692,7 @@ local function FocusSelected(should_solo)
 
 	reaper.PreventUIRefresh(-1)
 	reaper.TrackList_AdjustWindows(false) -- actually show changes
+	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 end
 
 local function PassesSelectFilters(track_ref)
@@ -703,7 +709,7 @@ local function PassesDisplayFilters(track)
 	if not PassesSelectFilters(track.track_ref) then
 		return false
 	end
-	if only_folder_parents and not track.is_folder then
+	if only_folder_parents and not track.is_folder and not track.is_pinned then
 		return false
 	end
 	return true
@@ -832,7 +838,7 @@ local function HandleNavClick(track)
 		SoloExclusive()
 	end
 
-	-- reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
+	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 end
 
 -- UI
@@ -1643,8 +1649,7 @@ end
 
 ----------------------------------------------------------------
 -- SEARCH
--- TEST: folder parents only mode
--- TODO: option to focus search on startup
+
 local search_index_moved_this_frame = false
 -- local search_mcp_only = true
 -- local search_hidden = true
@@ -1660,7 +1665,7 @@ local function SelectSearchEntry(entry)
 	end
 
 	-- uncollapse parent folders
-	if #entry.parents > 0 then -- TEST: folder parents only mode
+	if #entry.parents > 0 then
 		for _, parent in ipairs(entry.parents) do
 			reaper.SetMediaTrackInfo_Value(parent.track_ref, "I_FOLDERCOMPACT", 0)
 		end
@@ -1675,15 +1680,20 @@ local function SelectSearchEntry(entry)
 	ImGui.TextFilter_Clear(search_filter)
 	search_index = nil
 
-	reaper.TrackList_AdjustWindows(false)
 	reaper.PreventUIRefresh(-2)
+	reaper.TrackList_AdjustWindows(false)
+	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
+end
+
+local function RenderBreadcrumbDivider()
+	ImGui.TextColored(ctx, SetAlpha(Theme_colors.text_color, 0.5), " > ")
+	ImGui.SameLine(ctx)
 end
 
 local function RenderBreadcrumb(parent)
 	ImGui.TextColored(ctx, SetAlpha(Theme_colors.fg_color, 0.8), parent.name)
 	ImGui.SameLine(ctx)
-	ImGui.TextColored(ctx, SetAlpha(Theme_colors.text_color, 0.5), " > ")
-	ImGui.SameLine(ctx)
+	RenderBreadcrumbDivider()
 end
 
 local function RenderTrackBreadcrumbs(track)
@@ -1694,8 +1704,7 @@ local function RenderTrackBreadcrumbs(track)
 		if #track.parents > 2 then
 			ImGui.TextColored(ctx, SetAlpha(Theme_colors.fg_color, 0.6), "...")
 			ImGui.SameLine(ctx)
-			ImGui.TextColored(ctx, SetAlpha(Theme_colors.text_color, 0.5), " > ")
-			ImGui.SameLine(ctx)
+			RenderBreadcrumbDivider()
 		end
 		RenderBreadcrumb(track.parents[#track.parents]) -- immediate parent
 	end
@@ -1711,33 +1720,55 @@ local function GetListEntryString(track)
 	return str .. track.name
 end
 
-local function CompileSearchList()
-	local list = {}
-	for _, pt in ipairs(pinned_tracks) do
-		list[#list + 1] = pt
-	end
-	for _, mt in ipairs(main_tracks) do
-		-- if (search_mcp_only or not IsMCPOnly(mt.track_ref)) or (search_hidden or not IsArchived(mt.track_ref)) then
-		list[#list + 1] = mt
-		-- end
-	end
-	return list
-end
-
 local function GetFilteredSearchList()
 	local filtered = {}
-	for _, entry in ipairs(CompileSearchList()) do
-		if ImGui.TextFilter_PassFilter(search_filter, GetListEntryString(entry)) then
-			filtered[#filtered + 1] = entry
+	for _, pt in ipairs(pinned_tracks) do
+		if ImGui.TextFilter_PassFilter(search_filter, GetListEntryString(pt)) then
+			filtered[#filtered + 1] = pt
+		end
+	end
+	for _, mt in ipairs(main_tracks) do
+		if ImGui.TextFilter_PassFilter(search_filter, GetListEntryString(mt)) then
+			filtered[#filtered + 1] = mt
 		end
 	end
 	return filtered
 end
 
+local function HandleSearchResultsInteraction(filtered_list, count)
+	local ctrl_held = (ImGui.GetKeyMods(ctx) & ImGui.Mod_Ctrl) ~= 0
+
+	if search_index == nil or search_index > count then
+		search_index = 1
+	end
+
+	if
+		ImGui.IsKeyPressed(ctx, ImGui.Key_DownArrow, true)
+		or (ctrl_held and ImGui.IsKeyPressed(ctx, ImGui.Key_J, true))
+	then
+		search_index = (search_index % count) + 1
+		search_index_moved_this_frame = true
+	elseif
+		ImGui.IsKeyPressed(ctx, ImGui.Key_UpArrow, true) or (ctrl_held and ImGui.IsKeyPressed(ctx, ImGui.Key_K, true))
+	then
+		search_index = ((search_index - 2) % count) + 1
+		search_index_moved_this_frame = true
+	end
+
+	if ImGui.IsKeyPressed(ctx, ImGui.Key_Enter, false) then
+		SelectSearchEntry(filtered_list[search_index])
+		return
+	end
+
+	if ImGui.IsKeyPressed(ctx, ImGui.Key_Escape, false) then
+		ImGui.TextFilter_Clear(search_filter)
+	end
+end
+
 local function RenderSearchList()
 	local filtered_list = GetFilteredSearchList()
 	local count = #filtered_list
-	local ctrl_held = (ImGui.GetKeyMods(ctx) & ImGui.Mod_Ctrl) ~= 0
+	HandleSearchResultsInteraction(filtered_list, count)
 
 	if count == 0 then
 		search_index = nil
@@ -1745,45 +1776,18 @@ local function RenderSearchList()
 		ImGui.SameLine(ctx)
 		ImGui.TextColored(ctx, SetAlpha(Theme_colors.text_color, 0.5), "No matching tracks")
 	else
-		if search_index == nil or search_index > count then
-			search_index = 1
-		end
-
-		if
-			ImGui.IsKeyPressed(ctx, ImGui.Key_DownArrow, true)
-			or (ctrl_held and ImGui.IsKeyPressed(ctx, ImGui.Key_J, true))
-		then
-			search_index = (search_index % count) + 1
-			search_index_moved_this_frame = true
-		elseif
-			ImGui.IsKeyPressed(ctx, ImGui.Key_UpArrow, true)
-			or (ctrl_held and ImGui.IsKeyPressed(ctx, ImGui.Key_K, true))
-		then
-			search_index = ((search_index - 2) % count) + 1
-			search_index_moved_this_frame = true
-		end
-
-		if ImGui.IsKeyPressed(ctx, ImGui.Key_Enter, false) then
-			SelectSearchEntry(filtered_list[search_index])
-			return
-		end
-
-		if ImGui.IsKeyPressed(ctx, ImGui.Key_Escape, false) then
-			ImGui.TextFilter_Clear(search_filter)
-		end
-	end
-
-	for i, entry in ipairs(filtered_list) do
-		local is_selected = search_index == i
-		ImGui.Text(ctx, " ")
-		ImGui.SameLine(ctx) -- for artificial padding
-		RenderTrackBreadcrumbs(entry)
-		-- Q: use track colors here too?
-		if ImGui.Selectable(ctx, entry.name, is_selected, ImGui.SelectableFlags_SpanAllColumns) then
-			SelectSearchEntry(entry)
-		end
-		if is_selected and search_index_moved_this_frame then
-			ScrollHereY(false)
+		for i, entry in ipairs(filtered_list) do
+			local is_selected = search_index == i
+			ImGui.Text(ctx, " ")
+			ImGui.SameLine(ctx) -- for artificial padding
+			RenderTrackBreadcrumbs(entry)
+			if ImGui.Selectable(ctx, entry.name, is_selected, ImGui.SelectableFlags_SpanAllColumns) then
+				-- Q: use track colors here too?
+				SelectSearchEntry(entry)
+			end
+			if is_selected and search_index_moved_this_frame then
+				ScrollHereY(false)
+			end
 		end
 	end
 end
@@ -1908,21 +1912,23 @@ local function loop()
 						- ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
 
 					ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg, SetAlpha(Theme_colors.fg_color, 0.1))
-					ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgActive, SetAlpha(Theme_colors.fg_color, 0.4))
-					ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgHovered, SetAlpha(Theme_colors.fg_color, 0.2))
+					ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgActive, SetAlpha(Theme_colors.fg_color, 0.4)) -- FIXME: text box doesn't react
+					ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgHovered, SetAlpha(Theme_colors.fg_color, 0.2)) -- FIXME: text box doesn't react
 
 					ImGui.SetNextItemShortcut(ctx, ImGui.Key_Slash, ImGui.InputFlags_RouteGlobal)
-					ImGui.TextFilter_Draw(search_filter, ctx, "##search_input", search_input_width)
+
+					ImGui.TextFilter_Draw(search_filter, ctx, "##search_input", search_input_width) -- Q: replace searchbox with normal text input for hovering/active colors?
 					local search_min_x, search_min_y = ImGui.GetItemRectMin(ctx) -- must be called right after the widget
 					local search_box_hovered = ImGui.IsItemHovered(ctx)
 
 					-- SEARCHBOX PLACEHOLDER
 					if not ImGui.IsItemFocused(ctx) and not ImGui.TextFilter_IsActive(search_filter) then
 						local draw_list = ImGui.GetWindowDrawList(ctx)
+						local framepad_x, framepad_y = ImGui.GetStyleVar(ctx, ImGui.StyleVar_FramePadding)
 						ImGui.DrawList_AddText(
 							draw_list,
-							search_min_x + 4, -- TODO: replace magic number
-							search_min_y + 2, -- TODO: replace magic number
+							search_min_x + framepad_x,
+							search_min_y + framepad_y,
 							SetAlpha(Theme_colors.text_color, 0.5),
 							"Search tracks..."
 						)
@@ -1932,16 +1938,19 @@ local function loop()
 
 					-------------------------------- SEARCH LIST RESULTS
 					if ImGui.TextFilter_IsActive(search_filter) then
+						local frame_border_size = ImGui.GetStyleVar(ctx, ImGui.StyleVar_FrameBorderSize)
+						local item_spacing = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
+						local _, framepadding_y = ImGui.GetStyleVar(ctx, ImGui.StyleVar_FramePadding)
 						local max_height = math.max(
-							search_min_y - child_pos_y - ImGui.GetStyleVar(ctx, ImGui.StyleVar_FrameBorderSize),
+							search_min_y - child_pos_y - frame_border_size - 2 * framepadding_y,
 							ImGui.GetFrameHeightWithSpacing(ctx)
 						) -- room between child top and search box
 						local popup_height = math.min(search_popup_height, max_height)
 
 						ImGui.SetNextWindowPos(
 							ctx,
-							search_min_x + ImGui.GetStyleVar(ctx, ImGui.StyleVar_FrameBorderSize),
-							search_min_y,
+							search_min_x + frame_border_size,
+							search_min_y - item_spacing,
 							ImGui.Cond_Always,
 							0,
 							1
@@ -1951,9 +1960,15 @@ local function loop()
 						ImGui.PushStyleVarX(ctx, ImGui.StyleVar_WindowPadding, 2)
 						ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, ROUNDING)
 						ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, Darken(Theme_colors.bg2_color, 0.1))
-						ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(Theme_colors.bg_color, 0.5)) -- TODO: make sure folder parents are always legible
+						ImGui.PushStyleColor(ctx, ImGui.Col_Header, SetAlpha(Theme_colors.bg_color, 0.5))
 						ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, SetAlpha(Theme_colors.bg_color, 0.66))
 						ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, SetAlpha(Theme_colors.bg_color, 0.8))
+						ImGui.PushStyleColor(
+							ctx,
+							ImGui.Col_Border,
+							SetAlpha(Theme_colors.text_color, 0.7 - not_focused_dim)
+						)
+						local scroll_color_count = PushScrollbarColors(Theme_colors.fg_color, not_focused_dim, 0.2)
 
 						local popup_flags = ImGui.WindowFlags_NoTitleBar
 							| ImGui.WindowFlags_NoResize
@@ -1980,7 +1995,7 @@ local function loop()
 								max_height
 							)
 						end
-						ImGui.PopStyleColor(ctx, 4) -- window bg bg, header fg, header hovered fg, headeractive fg
+						ImGui.PopStyleColor(ctx, 5 + scroll_color_count) -- window bg bg, header fg, header hovered fg, headeractive fg, border txt
 						ImGui.PopStyleVar(ctx, 2) -- padding x, window rounding rounding
 						ImGui.End(ctx)
 
@@ -2212,7 +2227,7 @@ local function loop()
 end
 
 local function SavePersistentVars()
-	reaper.SetExtState(ext_name, "last_alt_click", value and "1" or "0", false)
+	reaper.SetExtState(ext_name, "last_alt_click", last_alt_click and "1" or "0", false)
 
 	if last_tc_ref then
 		local _, guid = reaper.GetSetMediaTrackInfo_String(last_tc_ref, "GUID", "", false)
