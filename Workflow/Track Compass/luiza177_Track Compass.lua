@@ -143,7 +143,6 @@ local function IsVisible(track_ref)
 end
 
 local function GatherAllTrackInfo()
-	local depth = 0
 	pinned_tracks = {}
 	main_tracks = {}
 	local parents = {}
@@ -173,7 +172,6 @@ local function GatherAllTrackInfo()
 			guid = guid,
 			name = name,
 			number = number,
-			depth = depth, -- NOTE: might not be needed if parents
 			is_folder = is_folder,
 			is_collapsed = is_collapsed,
 			color = color,
@@ -194,7 +192,6 @@ local function GatherAllTrackInfo()
 			marked_pinned_tracks[track_ref] = nil
 		end
 
-		depth = depth + depth_change
 		if is_folder then
 			parents[#parents + 1] = track_info
 		elseif depth_change < 0 then
@@ -715,7 +712,7 @@ local function PassesDisplayFilters(track)
 end
 
 local function ToggleFolderChildren(track, set, add)
-	local depth_to_select = track.depth + 1
+	local depth_to_select = #track.parents + 1
 	local current_depth = depth_to_select
 	for i = track.number, reaper.CountTracks(0) - 1 do
 		local other_track_ref = reaper.GetTrack(0, i)
@@ -1072,6 +1069,8 @@ local function RenderPinnedTrackTable()
 				RenderTrackNumberColumn(pt)
 			end
 			if ImGui.TableSetColumnIndex(ctx, 1) then
+				local depth = #pt.parents
+
 				local text_color, italic = GetPinnedTextStyle(pt)
 
 				local highlight_color = GetPinnedHighlightColor(pt)
@@ -1089,8 +1088,8 @@ local function RenderPinnedTrackTable()
 					selectable_flags = selectable_flags | ImGui.SelectableFlags_Highlight
 				end
 
-				if pt.depth > 0 then
-					ImGui.Indent(ctx, pt.depth * ImGui.GetFontSize(ctx))
+				if depth > 0 then
+					ImGui.Indent(ctx, depth * ImGui.GetFontSize(ctx))
 				end
 				local prefix = ""
 				if pt.is_folder then
@@ -1120,8 +1119,8 @@ local function RenderPinnedTrackTable()
 				ImGui.SameLine(ctx)
 				ImGui.TextColored(ctx, FullyDimmed(Theme_colors.text_color), row_style.suffix)
 
-				if pt.depth > 0 then
-					ImGui.Unindent(ctx, pt.depth * ImGui.GetFontSize(ctx))
+				if depth > 0 then
+					ImGui.Unindent(ctx, depth * ImGui.GetFontSize(ctx))
 				end
 			end
 			if ImGui.TableSetColumnIndex(ctx, 2) then
@@ -1154,7 +1153,9 @@ local function RenderMainTrackTable(height)
 	local skip_depth = nil
 
 	for _, mt in ipairs(main_tracks) do
-		local parent_is_collapsed = skip_depth ~= nil and mt.depth >= skip_depth
+		local depth = #mt.parents
+		local parent_is_collapsed = skip_depth ~= nil and depth >= skip_depth
+
 		if not parent_is_collapsed and PassesDisplayFilters(mt) then
 			ImGui.TableNextRow(ctx)
 
@@ -1179,14 +1180,14 @@ local function RenderMainTrackTable(height)
 				end
 
 				-- INDENT
-				if mt.depth > 0 then
-					ImGui.Indent(ctx, mt.depth * ImGui.GetFontSize(ctx))
+				if depth > 0 then
+					ImGui.Indent(ctx, depth * ImGui.GetFontSize(ctx))
 				end
 
 				-- FOLDER BUTTON
 				if mt.is_folder then
 					is_button_hovered = FolderExpandCollapseButton(mt)
-				elseif mt.depth > 0 then
+				elseif depth > 0 then
 					ImGui.Dummy(ctx, GetFolderButtonReserveWidth(), 0)
 					ImGui.SameLine(ctx)
 				end
@@ -1223,8 +1224,8 @@ local function RenderMainTrackTable(height)
 				ImGui.SameLine(ctx)
 				ImGui.TextColored(ctx, FullyDimmed(Theme_colors.text_color), row_style.suffix)
 
-				if mt.depth > 0 then
-					ImGui.Unindent(ctx, mt.depth * ImGui.GetFontSize(ctx))
+				if depth > 0 then
+					ImGui.Unindent(ctx, depth * ImGui.GetFontSize(ctx))
 				end
 			end
 			if not IsArchived(mt.track_ref) and not IsMCPOnly(mt.track_ref) then
@@ -1236,7 +1237,7 @@ local function RenderMainTrackTable(height)
 		if not parent_is_collapsed then
 			skip_depth = nil
 			if mt.is_folder and mt.is_collapsed then
-				skip_depth = mt.depth + 1
+				skip_depth = depth + 1
 			end
 		end
 	end
@@ -1459,12 +1460,13 @@ local function CompileFullListWithFilters()
 		end
 	end
 	for _, mt in ipairs(main_tracks) do
+		local depth = #mt.parents
 		if not skip_depth and mt.is_folder and mt.is_collapsed then
-			skip_depth = mt.depth + 1
-		elseif skip_depth and mt.depth < skip_depth then
+			skip_depth = depth + 1
+		elseif skip_depth and depth < skip_depth then
 			skip_depth = nil
 		end
-		if ShouldIncludeTrack(mt, (skip_depth and mt.depth >= skip_depth)) then
+		if ShouldIncludeTrack(mt, (skip_depth and depth >= skip_depth)) then
 			full_list[#full_list + 1] = mt
 		end
 	end
@@ -1542,20 +1544,18 @@ local function ResolveCursorIndex(list)
 	return nil
 end
 
-local function FindTrackParentIndex(list, current_index, current_depth, is_on_pinned_track)
-	-- TODO: change to parents[#parents] or is_pinned
-	-- if not is_pinned, then find is_pinned, else return 1
-	local i = current_index
-	while i > 1 do
-		i = i - 1
-		if is_on_pinned_track then
-			break
-		end
-		if list[i].depth == current_depth - 1 and list[i].is_folder or list[i].is_pinned then
-			return i
+local function FindTrackParentIndex(list, current_index)
+	local track = list[current_index]
+	if #track.parents > 0 then
+		local parent = track.parents[#track.parents]
+		if not parent.is_pinned then
+			return FindIndexOfTrack(list, parent.track_ref)
 		end
 	end
-	return 1
+	if track.is_pinned or #pinned_tracks == 0 then
+		return 1
+	end
+	return FindIndexOfTrack(list, pinned_tracks[#pinned_tracks].track_ref)
 end
 
 local function HandleTrackListKeyCommands()
@@ -1632,7 +1632,7 @@ local function HandleTrackListKeyCommands()
 			if tc_cursor.is_folder and not tc_cursor.is_collapsed then
 				reaper.SetMediaTrackInfo_Value(tc_cursor.track_ref, "I_FOLDERCOMPACT", 2)
 			else
-				tc_cursor = list[FindTrackParentIndex(list, index, tc_cursor.depth, tc_cursor.is_pinned)]
+				tc_cursor = list[FindTrackParentIndex(list, index)]
 				tc_cursor_moved_this_frame = true
 			end
 		end
@@ -1641,7 +1641,6 @@ local function HandleTrackListKeyCommands()
 	if ImGui.Shortcut(ctx, ImGui.Key_P) then
 		if tc_cursor then
 			PinUnpinTrack(tc_cursor.is_pinned, tc_cursor.track_ref)
-			-- Q: go back to main?
 		end
 	end
 end
