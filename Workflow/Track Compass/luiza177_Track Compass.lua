@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.6.1
+-- @version 0.6.2
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -12,18 +12,17 @@
 --   - FX return tracks (hidden in the arrange view) only get their MCP recalled
 --   If you add tracks later, press the * button (beside the ALL button), and a new snapshot is taken.
 --   ## Other features:
---   - Ctrl/Cmd click for multi-select
 --   - Alt/Opt click or turn on Solo mode for soloing
+--   - Search tracks
 --   - Adapts to your theme
 --   It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim.
 --   And, of course, add some bells and whistles.
 --   ## Roadmap:
---   - Allow drag-select
---   - Support shift-select
 --   - Support click-drag-select
+--   - Reaper actions for focusing, toggling marked pinned tracks, etc
 --   - Maybe: track manager features (eg. delete, add, move)
 -- @changelog
---   - Fixed crash on exit on empty proejct
+--   - Fix: guard against invalid context when redocking
 -- @provides
 --   [main] .
 
@@ -42,12 +41,22 @@ end
 package.path = reaper.ImGui_GetBuiltinPath() .. "/?.lua;" .. package.path
 local ImGui = require("imgui")("0.10")
 
-local ctx = ImGui.CreateContext("Track Compass")
+local function CreateContextAndResources()
+	ctx = ImGui.CreateContext("Track Compass")
+
+	italic_font = ImGui.CreateFont("sans-serif", ImGui.FontFlags_Italic)
+	ImGui.Attach(ctx, italic_font)
+
+	search_filter = ImGui.CreateTextFilter()
+	ImGui.Attach(ctx, search_filter)
+
+	ImGui.SetConfigVar(ctx, ImGui.ConfigVar_HoverStationaryDelay, 0.6)
+end
+
+CreateContextAndResources()
+
 local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 local ext_name = "luiza177.TrackCompass"
-
-local italic_font = ImGui.CreateFont("sans-serif", ImGui.FontFlags_Italic)
-ImGui.Attach(ctx, italic_font)
 
 -- Q: FUNC -- Alternative workflow: single click selects, double-click focuses
 -- Q: FUNC / MAYBE -- SWS track size on focus
@@ -85,13 +94,6 @@ local only_folder_parents = false
 local default_to_focus_mode = false
 
 ---------------------------------------------------------------------------
--- CONFIG VARS
-ImGui.SetConfigVar(ctx, ImGui.ConfigVar_HoverStationaryDelay, 0.6)
-local search_filter = ImGui.CreateTextFilter()
-ImGui.Attach(ctx, search_filter)
-local search_index = nil
-
----------------------------------------------------------------------------
 -- OS stuff
 local macOS = false
 local os = reaper.GetOS()
@@ -103,8 +105,8 @@ local ALT = macOS and "Opt" or "Alt"
 
 ---------------------------------------------------------------------------
 -- GENERAL HELPERS
-local function SaveBoolState(key, value)
-	reaper.SetExtState(ext_name, key, value and "1" or "0", true)
+local function SaveBoolState(key, value, persist)
+	reaper.SetExtState(ext_name, key, value and "1" or "0", persist)
 end
 
 local function LoadState(key, default)
@@ -241,6 +243,15 @@ end
 
 local function SetSolo(track_ref, solo)
 	reaper.SetMediaTrackInfo_Value(track_ref, "I_SOLO", solo)
+end
+
+local function FindIndexOfTrack(list, track_ref)
+	for i, entry in ipairs(list) do
+		if entry.track_ref == track_ref then
+			return i
+		end
+	end
+	return nil
 end
 
 ---------------------------------------------------------------------------
@@ -550,6 +561,30 @@ local function RestoreAllState()
 	UnsoloAll()
 end
 
+local function FocusSelected(should_solo)
+	reaper.PreventUIRefresh(1)
+	for _, pt in ipairs(pinned_tracks) do
+		local is_visible = show_pinned and IsMarkedForVisibility(pt.track_ref)
+		SetSolo(pt.track_ref, (should_solo and is_visible) and 1 or 0)
+	end
+	for _, mt in ipairs(main_tracks) do
+		local focused = focused_main_tracks[mt.track_ref] == true
+		ShowHideTrack(mt.track_ref, focused)
+		SetSolo(mt.track_ref, (should_solo and focused) and 1 or 0)
+	end
+
+	reaper.PreventUIRefresh(-1)
+	reaper.TrackList_AdjustWindows(false) -- actually show changes
+	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
+end
+
+local function ApplyPinnedTrackVisibility()
+	for _, pt in ipairs(pinned_tracks) do
+		ShowHideTrack(pt.track_ref, show_pinned and IsMarkedForVisibility(pt.track_ref))
+	end
+	reaper.TrackList_AdjustWindows(false)
+end
+
 ----- GET TRACK STATES
 local function IsNormal(track_ref)
 	if not all_snapshot[track_ref] then
@@ -618,6 +653,72 @@ local function SetArchived(track_ref)
 	end
 end
 
+-- VISIBLE LIST for interaction
+local function ShouldIncludeTrack(track, parent_is_collapsed)
+	if only_folder_parents and not track.is_folder then
+		return false
+	else
+		if parent_is_collapsed then
+			return false
+		end
+		if not show_mcp_only_tracks and IsMCPOnly(track.track_ref) then
+			return false
+		end
+		if not show_hidden_tracks and IsArchived(track.track_ref) then
+			return false
+		end
+	end
+	return true
+end
+
+local function CompileFullListWithFilters()
+	local skip_depth = nil
+	local full_list = {}
+	for _, pt in ipairs(pinned_tracks) do
+		if ShouldIncludeTrack(pt, false) then
+			full_list[#full_list + 1] = pt
+		end
+	end
+	for _, mt in ipairs(main_tracks) do
+		local depth = #mt.parents
+		if not skip_depth and mt.is_folder and mt.is_collapsed then
+			skip_depth = depth + 1
+		elseif skip_depth and depth < skip_depth then
+			skip_depth = nil
+		end
+		if ShouldIncludeTrack(mt, (skip_depth and depth >= skip_depth)) then
+			full_list[#full_list + 1] = mt
+		end
+	end
+	return full_list
+end
+
+local function GetClickMods()
+	local mods = ImGui.GetKeyMods(ctx)
+	return {
+		ctrl = (mods & ImGui.Mod_Ctrl) ~= 0,
+		alt = (mods & ImGui.Mod_Alt) ~= 0,
+		shift = (mods & ImGui.Mod_Shift) ~= 0,
+	}
+end
+
+local function SetKbdCursor(track)
+	tc_cursor = track
+	last_tc_ref = tc_cursor.track_ref
+end
+
+local function GetRangeBounds(clicked_ref)
+	local full_track_list = CompileFullListWithFilters()
+	local first_sel_index = FindIndexOfTrack(full_track_list, last_main_click_ref)
+	local clicked_track_index = FindIndexOfTrack(full_track_list, clicked_ref)
+
+	if first_sel_index > clicked_track_index then
+		first_sel_index, clicked_track_index = clicked_track_index, first_sel_index
+	end
+
+	return full_track_list, first_sel_index, clicked_track_index
+end
+
 -- UI
 local function ScrollHereY(compensate_frame_height)
 	local _, row_min_y = ImGui.GetItemRectMin(ctx)
@@ -666,29 +767,13 @@ local function RenderTrackListContextMenu(track, is_pinned)
 end
 
 -- MAIN LIST
+
 local function IsEntrySelected(track, set)
 	if focus_view then
 		return set[track.track_ref] == true
 	else
 		return reaper.IsTrackSelected(track.track_ref)
 	end
-end
-
-local function FocusSelected(should_solo)
-	reaper.PreventUIRefresh(1)
-	for _, pt in ipairs(pinned_tracks) do
-		local is_visible = show_pinned and IsMarkedForVisibility(pt.track_ref)
-		SetSolo(pt.track_ref, (should_solo and is_visible) and 1 or 0)
-	end
-	for _, mt in ipairs(main_tracks) do
-		local focused = focused_main_tracks[mt.track_ref] == true
-		ShowHideTrack(mt.track_ref, focused)
-		SetSolo(mt.track_ref, (should_solo and focused) and 1 or 0)
-	end
-
-	reaper.PreventUIRefresh(-1)
-	reaper.TrackList_AdjustWindows(false) -- actually show changes
-	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
 end
 
 local function PassesSelectFilters(track_ref)
@@ -733,6 +818,38 @@ local function ToggleFolderChildren(track, set, add)
 	end
 end
 
+local function ApplyRangeSelection(clicked_ref, toggle_on)
+	local list, first_index, last_index = GetRangeBounds(clicked_ref)
+	for i = first_index, last_index do
+		local current_ref = list[i].track_ref
+		if focus_view then
+			focused_main_tracks[current_ref] = toggle_on or nil
+		else
+			reaper.SetTrackSelected(current_ref, toggle_on)
+		end
+	end
+	last_main_click_ref = clicked_ref
+end
+
+local function ToggleTrack(track, untoggle_folder_children)
+	if focus_view then
+		if focused_main_tracks[track.track_ref] then -- already selected
+			focused_main_tracks[track.track_ref] = nil -- unselect it
+			if (only_folder_parents or untoggle_folder_children) and track.is_folder then
+				ToggleFolderChildren(track, focused_main_tracks, false) -- and unselect children, if folder and only parents
+			end
+		else
+			focused_main_tracks[track.track_ref] = true -- select it
+			if track.is_folder then
+				ToggleFolderChildren(track, focused_main_tracks, true) -- and select children, if folder
+			end
+		end
+	else -- nav mode
+		reaper.SetTrackSelected(track.track_ref, not reaper.IsTrackSelected(track.track_ref))
+	end
+	last_main_click_ref = track.track_ref
+end
+
 local function AddPinnedTracks()
 	for _, pt in ipairs(pinned_tracks) do
 		marked_pinned_tracks[pt.track_ref] = true
@@ -740,34 +857,21 @@ local function AddPinnedTracks()
 end
 
 local function HandleMainTrackClick(track)
-	tc_cursor = track
-	last_tc_ref = tc_cursor.track_ref
-	local mods = ImGui.GetKeyMods(ctx)
-	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
-	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
-	local should_solo = alt_held or solo_selected
-	local shift_held = (mods & ImGui.Mod_Shift) ~= 0
+	SetKbdCursor(track)
+	local mods = GetClickMods()
+	local should_solo = mods.alt or solo_selected
 
-	if last_alt_click and not alt_held then
+	if last_alt_click and not mods.alt then
 		UnsoloAll()
 	end
 
-	if ctrl_held then -- multi-select
-		if focused_main_tracks[track.track_ref] then -- already selected
-			focused_main_tracks[track.track_ref] = nil -- unselect it
-			if (only_folder_parents or shift_held) and track.is_folder then
-				ToggleFolderChildren(track, focused_main_tracks, false)
-			end -- and unselect children, if folder and only parents
-		else
-			focused_main_tracks[track.track_ref] = true -- select it
-			if track.is_folder then
-				ToggleFolderChildren(track, focused_main_tracks, true)
-			end -- and select children, if folder
-		end
-		last_main_click_ref = nil
+	if mods.shift and not mods.ctrl and last_main_click_ref then -- range-select
+		ApplyRangeSelection(track.track_ref, not IsEntrySelected(track, focused_main_tracks))
+	elseif mods.ctrl then -- multi-select
+		ToggleTrack(track, mods.shift)
 	else -- single select
-		if track.track_ref == last_main_click_ref then -- if single-select clicked the same track
-			focused_main_tracks = {} -- or to restore ALL state later
+		if track.track_ref == last_main_click_ref and (track.is_folder or CountKeys(focused_main_tracks) == 1) then -- if single-select clicked the same track
+			focused_main_tracks = {} -- restore ALL state later
 			last_main_click_ref = nil
 		else
 			focused_main_tracks = { [track.track_ref] = true } -- single out clicked tracks
@@ -784,44 +888,22 @@ local function HandleMainTrackClick(track)
 		FocusSelected(should_solo)
 	end
 
-	last_alt_click = alt_held
-end
-
-local function ApplyPinnedTrackVisibility()
-	for _, pt in ipairs(pinned_tracks) do
-		ShowHideTrack(pt.track_ref, show_pinned and IsMarkedForVisibility(pt.track_ref))
-	end
-	reaper.TrackList_AdjustWindows(false)
-end
-
-local function HandlePinnedTrackClick(track)
-	if IsMarkedForVisibility(track.track_ref) then
-		marked_pinned_tracks[track.track_ref] = nil
-	else
-		marked_pinned_tracks[track.track_ref] = true
-	end
-
-	show_pinned = not NoPinnedTracksMarked()
-	ApplyPinnedTrackVisibility()
+	last_alt_click = mods.alt
 end
 
 local function HandleNavClick(track)
-	tc_cursor = track
-	last_tc_ref = tc_cursor.track_ref
-	local mods = ImGui.GetKeyMods(ctx)
-	local ctrl_held = (mods & ImGui.Mod_Ctrl) ~= 0
-	local alt_held = (mods & ImGui.Mod_Alt) ~= 0
-	local should_solo = alt_held or solo_selected
+	SetKbdCursor(track)
 
-	if ctrl_held then -- multi-select
-		if reaper.IsTrackSelected(track.track_ref) then
-			reaper.SetTrackSelected(track.track_ref, false)
-		else
-			reaper.SetTrackSelected(track.track_ref, true)
-		end
-		last_main_click_ref = nil
+	local mods = GetClickMods()
+	local should_solo = mods.alt or solo_selected
+
+	if mods.shift and last_main_click_ref then -- range-select
+		ApplyRangeSelection(track.track_ref, not IsEntrySelected(track, nil))
+	elseif mods.ctrl then -- multi-select
+		ToggleTrack(track, nil)
 	else -- single select
-		if track.track_ref == last_main_click_ref then
+		if track.track_ref == last_main_click_ref and reaper.CountSelectedTracks(0) == 1 then
+			-- NOTE: does not check if folder like main, doesn't matter when not focusing
 			reaper.SetTrackSelected(track.track_ref, false)
 			last_main_click_ref = nil
 		else
@@ -835,6 +917,18 @@ local function HandleNavClick(track)
 	end
 
 	reaper.Main_OnCommand(40913, 0) -- Track: Vertical scroll selected tracks into view
+end
+
+-- TODO: pinned tracks: if shift+ctrl click, find children and expand/collapse
+local function HandlePinnedTrackClick(track)
+	if IsMarkedForVisibility(track.track_ref) then
+		marked_pinned_tracks[track.track_ref] = nil
+	else
+		marked_pinned_tracks[track.track_ref] = true
+	end
+
+	show_pinned = not NoPinnedTracksMarked()
+	ApplyPinnedTrackVisibility()
 end
 
 -- UI
@@ -925,7 +1019,7 @@ local function GetTrackStylingAndSuffix(track)
 	return { suffix = "", label_color = color, italic = false }
 end
 
-local function RenderTrackNumberColumn(track)
+local function RenderTrackNumberColumn(track) -- and keyboard cursor
 	local number_color = Theme_colors.text_color
 	local alpha = true
 
@@ -994,8 +1088,7 @@ local function FolderExpandCollapseButton(track)
 		else
 			reaper.SetMediaTrackInfo_Value(track.track_ref, "I_FOLDERCOMPACT", 2)
 		end
-		tc_cursor = track
-		last_tc_ref = tc_cursor.track_ref
+		SetKbdCursor(track)
 	end
 	if ImGui.IsItemHovered(ctx) then
 		is_hovered = true
@@ -1318,14 +1411,14 @@ local function InitFocusMode()
 
 	if #main_tracks - num_archived_tracks == CountKeys(focused_main_tracks) then -- actually in ALL state
 		focused_main_tracks = {}
-		focus_view = default_to_focus_mode
+		focus_view = LoadBoolState("session_focus", default_to_focus_mode)
 	end
 end
 
 local function InitProject()
 	LoadOrInitAllState()
 	InitPinnedTracks()
-	show_pinned = CountKeys(marked_pinned_tracks) > 0 and true or false
+	show_pinned = CountKeys(marked_pinned_tracks) > 0
 	InitFocusMode()
 
 	last_tc_ref = nil
@@ -1367,17 +1460,17 @@ end
 
 local function SetShowHideMCPOnly(new_value)
 	show_mcp_only_tracks = new_value
-	SaveBoolState("show_mcp_only_tracks", show_mcp_only_tracks)
+	SaveBoolState("show_mcp_only_tracks", show_mcp_only_tracks, true)
 end
 
 local function SetShowHideArchived(new_value)
 	show_hidden_tracks = new_value
-	SaveBoolState("show_hidden_tracks", show_hidden_tracks)
+	SaveBoolState("show_hidden_tracks", show_hidden_tracks, true)
 end
 
 local function SetShowFoldersOnly(new_value)
 	only_folder_parents = new_value
-	SaveBoolState("only_folder_parents", only_folder_parents)
+	SaveBoolState("only_folder_parents", only_folder_parents, true)
 end
 
 local function ExpandCollapseAll(expand)
@@ -1394,7 +1487,6 @@ local function ExpandCollapseAll(expand)
 end
 
 local function HandleGlobalShortcuts()
-	-- FOCUS ARRANGE WINDOW
 	if ImGui.Shortcut(ctx, ImGui.Key_Escape) then
 		FocusArrangeView()
 	end
@@ -1434,45 +1526,6 @@ local function HandleGlobalShortcuts()
 end
 
 -- KEYBOARD NAVIGATION
-local function ShouldIncludeTrack(track, parent_is_collapsed)
-	if only_folder_parents and not track.is_folder then
-		return false
-	else
-		if parent_is_collapsed then
-			return false
-		end
-		if not show_mcp_only_tracks and IsMCPOnly(track.track_ref) then
-			return false
-		end
-		if not show_hidden_tracks and IsArchived(track.track_ref) then
-			return false
-		end
-	end
-	return true
-end
-
-local function CompileFullListWithFilters()
-	local skip_depth = nil
-	local full_list = {}
-	for _, pt in ipairs(pinned_tracks) do
-		if ShouldIncludeTrack(pt, false) then
-			full_list[#full_list + 1] = pt
-		end
-	end
-	for _, mt in ipairs(main_tracks) do
-		local depth = #mt.parents
-		if not skip_depth and mt.is_folder and mt.is_collapsed then
-			skip_depth = depth + 1
-		elseif skip_depth and depth < skip_depth then
-			skip_depth = nil
-		end
-		if ShouldIncludeTrack(mt, (skip_depth and depth >= skip_depth)) then
-			full_list[#full_list + 1] = mt
-		end
-	end
-	return full_list
-end
-
 local function FindClosestTrackInList(list, target_number)
 	local best_below, best_above = nil, nil
 	for _, entry in ipairs(list) do
@@ -1489,15 +1542,6 @@ local function FindClosestTrackInList(list, target_number)
 	return best_below or best_above -- prefer nearest at-or-before; only look after if nothing precedes it
 end
 
-local function FindIndexOfTrack(list, track_ref)
-	for i, entry in ipairs(list) do
-		if entry.track_ref == track_ref then
-			return i
-		end
-	end
-	return nil
-end
-
 local function ResolveCursorIndex(list)
 	if tc_cursor then
 		local index = FindIndexOfTrack(list, tc_cursor.track_ref)
@@ -1508,11 +1552,8 @@ local function ResolveCursorIndex(list)
 		-- if list changed, find new index of old track
 		local closest_track = tc_cursor and FindClosestTrackInList(list, tc_cursor.number)
 		if closest_track then
-			tc_cursor = closest_track
-			if tc_cursor then
-				last_tc_ref = tc_cursor.track_ref
-			end
-			return FindIndexOfTrack(list, tc_cursor)
+			SetKbdCursor(closest_track)
+			return FindIndexOfTrack(list, tc_cursor.track_ref)
 		end
 	end
 
@@ -1520,26 +1561,21 @@ local function ResolveCursorIndex(list)
 	if NoFocusedMainTracks() and reaper.CountSelectedTracks(0) > 0 then
 		local track_ref = reaper.GetSelectedTrack(0, 0)
 		local index = FindIndexOfTrack(list, track_ref)
-		tc_cursor = list[index]
-		if tc_cursor then
-			last_tc_ref = tc_cursor.track_ref
+		-- TEST: slightly different logic
+		if index then
+			SetKbdCursor(list[index])
+			return index
 		end
-		return index
 	end
 
 	-- remember last place if no selected or focused tracks
 	if last_tc_ref then -- Q: and is visible?
 		local index = FindIndexOfTrack(list, last_tc_ref)
-		tc_cursor = list[index]
-		return index
+		if index then
+			tc_cursor = list[index]
+			return index
+		end
 	end
-
-	-- TODO: if focus, then first selected focused track
-	-- if focus_view and not NoFocusedMainTracks() then
-	-- local index = FindIndexOfTrack(list, )
-	-- tc_cursor = list[index]
-	-- return index
-	-- end
 
 	return nil
 end
@@ -1569,7 +1605,6 @@ local function HandleTrackListKeyCommands()
 	then
 		if not index then
 			index = 1
-			tc_cursor = list[index]
 		else
 			index = index + 1
 		end
@@ -1579,8 +1614,8 @@ local function HandleTrackListKeyCommands()
 		elseif index < 0 then
 			index = 0
 		end
-		tc_cursor = list[index]
-		last_tc_ref = tc_cursor.track_ref
+
+		SetKbdCursor(list[index])
 		tc_cursor_moved_this_frame = true
 	end
 
@@ -1590,7 +1625,6 @@ local function HandleTrackListKeyCommands()
 	then
 		if not index then
 			index = #list
-			tc_cursor = list[index]
 		else
 			index = index - 1
 		end
@@ -1600,15 +1634,15 @@ local function HandleTrackListKeyCommands()
 		elseif index < 1 then
 			index = 1
 		end
-		tc_cursor = list[index]
-		last_tc_ref = tc_cursor.track_ref
+
+		SetKbdCursor(list[index])
 		tc_cursor_moved_this_frame = true
 	end
 
 	if
-		ImGui.Shortcut(ctx, ImGui.Key_L)
-		or ImGui.Shortcut(ctx, ImGui.Key_RightArrow)
-		or ImGui.Shortcut(ctx, ImGui.Key_Enter)
+		ImGui.IsKeyPressed(ctx, ImGui.Key_L)
+		or ImGui.IsKeyPressed(ctx, ImGui.Key_RightArrow)
+		or ImGui.IsKeyPressed(ctx, ImGui.Key_Enter)
 	then
 		if tc_cursor then
 			if tc_cursor.is_folder and tc_cursor.is_collapsed then
@@ -1643,11 +1677,35 @@ local function HandleTrackListKeyCommands()
 			PinUnpinTrack(tc_cursor.is_pinned, tc_cursor.track_ref)
 		end
 	end
+
+	-- TODO: support Shift+/Ctrl+ J/K/Down/Up
+
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_N) then
+		if tc_cursor then
+			SetNormal(tc_cursor.track_ref)
+		end
+	end
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_T) then
+		if tc_cursor then
+			SetTCPOnly(tc_cursor.track_ref)
+		end
+	end
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_M) then
+		if tc_cursor then
+			SetMCPOnly(tc_cursor.track_ref)
+		end
+	end
+	if ImGui.Shortcut(ctx, ImGui.Mod_Ctrl | ImGui.Key_H) then
+		if tc_cursor then
+			SetArchived(tc_cursor.track_ref)
+		end
+	end
 end
 
 ----------------------------------------------------------------
 -- SEARCH
 
+local search_index = nil
 local search_index_moved_this_frame = false
 -- local search_mcp_only = true
 -- local search_hidden = true
@@ -1669,8 +1727,7 @@ local function SelectSearchEntry(entry)
 		end
 	end
 
-	tc_cursor = entry
-	last_tc_ref = entry.track_ref
+	SetKbdCursor(entry)
 	tc_cursor_moved_this_frame = true
 
 	reaper.SetOnlyTrackSelected(entry.track_ref)
@@ -1734,7 +1791,7 @@ local function GetFilteredSearchList()
 end
 
 local function HandleSearchResultsInteraction(filtered_list, count)
-	local ctrl_held = (ImGui.GetKeyMods(ctx) & ImGui.Mod_Ctrl) ~= 0
+	local mods = GetClickMods()
 
 	if search_index == nil or search_index > count then
 		search_index = 1
@@ -1742,12 +1799,12 @@ local function HandleSearchResultsInteraction(filtered_list, count)
 
 	if
 		ImGui.IsKeyPressed(ctx, ImGui.Key_DownArrow, true)
-		or (ctrl_held and ImGui.IsKeyPressed(ctx, ImGui.Key_J, true))
+		or (mods.ctrl and ImGui.IsKeyPressed(ctx, ImGui.Key_J, true))
 	then
 		search_index = (search_index % count) + 1
 		search_index_moved_this_frame = true
 	elseif
-		ImGui.IsKeyPressed(ctx, ImGui.Key_UpArrow, true) or (ctrl_held and ImGui.IsKeyPressed(ctx, ImGui.Key_K, true))
+		ImGui.IsKeyPressed(ctx, ImGui.Key_UpArrow, true) or (mods.ctrl and ImGui.IsKeyPressed(ctx, ImGui.Key_K, true))
 	then
 		search_index = ((search_index - 2) % count) + 1
 		search_index_moved_this_frame = true
@@ -1791,7 +1848,8 @@ local function RenderSearchList()
 end
 
 --==============================================================
-local function loop()
+-- local function loop()
+local function Main()
 	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, ROUNDING)
 	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 8)
 
@@ -2021,7 +2079,7 @@ local function loop()
 					if ImGui.Button(ctx, "⊟") then
 						ExpandCollapseAll(false)
 					end
-					ImGui.SetItemTooltip(ctx, "Collapse all folders (Shift+" .. ALT .. "+C)")
+					ImGui.SetItemTooltip(ctx, "Collapse all folders (Shift+" .. CTRL .. "+C)")
 
 					ImGui.SameLine(ctx)
 
@@ -2029,7 +2087,7 @@ local function loop()
 					if ImGui.Button(ctx, "⊞") then
 						ExpandCollapseAll(true)
 					end
-					ImGui.SetItemTooltip(ctx, "Expand all folders (Shift+" .. ALT .. "+E)")
+					ImGui.SetItemTooltip(ctx, "Expand all folders (Shift+" .. CTRL .. "+E)")
 
 					ImGui.PopStyleVar(ctx, 1) -- frame padding 7
 					ImGui.EndGroup(ctx)
@@ -2092,7 +2150,7 @@ local function loop()
 					if solo_selected_change then
 						SetSoloMode(solo_selected_new)
 					end
-					ImGui.SetItemTooltip(ctx, "Exclusively solo selected tracks (Shift+" .. ALT .. "+S)")
+					ImGui.SetItemTooltip(ctx, "Exclusively solo selected tracks (" .. CTRL .. "+" .. ALT .. "+S)")
 
 					-- Show PINNED
 					local show_pinned_change, show_pinned_new = ImGui.Checkbox(ctx, "Show pinned tracks", show_pinned)
@@ -2119,7 +2177,7 @@ local function loop()
 				end
 				ImGui.SetItemTooltip(
 					ctx,
-					"Show tracks with only the MCP (eg. FX return tracks) in the track list (Shift+" .. ALT .. "+M)"
+					"Show tracks with only the MCP (eg. FX return tracks) in the track list (Shift+" .. CTRL .. "+M)"
 				)
 
 				-- SHOW HIDDEN
@@ -2128,7 +2186,7 @@ local function loop()
 				if show_hidden_tracks_change then
 					SetShowHideArchived(show_hidden_tracks_new)
 				end
-				ImGui.SetItemTooltip(ctx, "Show hidden tracks in track list (Shift+" .. ALT .. "+H)")
+				ImGui.SetItemTooltip(ctx, "Show hidden tracks in track list (Shift+" .. CTRL .. "+H)")
 
 				-- ONLY SHOW FOLDERS
 				local only_folder_parents_change, only_folders_parents_new =
@@ -2136,7 +2194,7 @@ local function loop()
 				if only_folder_parents_change then
 					SetShowFoldersOnly(only_folders_parents_new)
 				end
-				ImGui.SetItemTooltip(ctx, "Show only folder parents in track list (Shift+" .. ALT .. "+F)")
+				ImGui.SetItemTooltip(ctx, "Show only folder parents in track list (Shift+" .. CTRL .. "+F)")
 
 				ImGui.SeparatorText(ctx, "UI")
 
@@ -2145,7 +2203,7 @@ local function loop()
 					ImGui.Checkbox(ctx, "Hide options in track list", hide_options)
 				if hide_options_change then
 					hide_options = hide_options_new
-					SaveBoolState("hide_options", hide_options)
+					SaveBoolState("hide_options", hide_options, true)
 				end
 				ImGui.SetItemTooltip(
 					ctx,
@@ -2157,7 +2215,7 @@ local function loop()
 					ImGui.Checkbox(ctx, "Hide ALL button in track list", hide_all_button)
 				if hide_all_button_change then
 					hide_all_button = hide_all_button_new
-					SaveBoolState("hide_all_button", hide_all_button)
+					SaveBoolState("hide_all_button", hide_all_button, true)
 				end
 				if hide_all_button then
 					-- CAPTURE BUTTON
@@ -2174,7 +2232,7 @@ local function loop()
 					ImGui.Checkbox(ctx, "Default to Focus mode", default_to_focus_mode)
 				if default_to_focus_change then
 					default_to_focus_mode = default_to_focus_new
-					SaveBoolState("default_to_focus_mode", default_to_focus_mode)
+					SaveBoolState("default_to_focus_mode", default_to_focus_mode, true)
 				end
 				ImGui.SetItemTooltip(
 					ctx,
@@ -2185,7 +2243,7 @@ local function loop()
 					ImGui.Checkbox(ctx, "Use track colors in list", use_track_colors)
 				if use_track_colors_change then
 					use_track_colors = use_track_colors_new
-					SaveBoolState("use_track_colors", use_track_colors)
+					SaveBoolState("use_track_colors", use_track_colors, true)
 				end
 				ImGui.SetItemTooltip(
 					ctx,
@@ -2207,6 +2265,8 @@ local function loop()
 				ImGui.SetItemTooltip(ctx, "Reset ALL state. All tracks should TCP and MCP, and are visible")
 				ImGui.PopStyleColor(ctx, alert_colors) -- alert btn colors
 
+				-- TODO: Shortcuts / instructions
+
 				ImGui.EndTabItem(ctx)
 			end
 			ImGui.EndTabBar(ctx)
@@ -2219,13 +2279,15 @@ local function loop()
 
 		ImGui.End(ctx)
 	end -- if visible
-	if open and not quit then
-		reaper.defer(loop)
-	end
+	-- if open and not quit then
+	-- reaper.defer(loop)
+	-- end
+	return open and not quit
 end
 
 local function SavePersistentVars()
-	reaper.SetExtState(ext_name, "last_alt_click", last_alt_click and "1" or "0", false)
+	SaveBoolState("session_focus", focus_view, false)
+	SaveBoolState("last_alt_click", last_alt_click, false)
 
 	if reaper.CountTracks(0) > 0 then
 		if last_tc_ref then
@@ -2260,7 +2322,25 @@ local function Init()
 	InitProject()
 end
 
+local function SafeLoop()
+	local ok, result = pcall(Main)
+	if not ok then
+		if tostring(result):match("expected a valid ImGui_Context") then
+			CreateContextAndResources()
+			reaper.defer(SafeLoop)
+		else
+			error(result)
+		end
+		return
+	end
+
+	if result then -- returns true: open and not quit
+		reaper.defer(SafeLoop)
+	end
+end
+
 reaper.set_action_options(1 | 2) -- auto-terminate, re-launch
 Init()
-reaper.defer(loop)
+-- reaper.defer(loop)
+reaper.defer(SafeLoop)
 reaper.atexit(SavePersistentVars)
