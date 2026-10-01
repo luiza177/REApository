@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="89864f2036a37807ce72c30216446d521fa45a44">
+<index version="1" name="Luiza177's REApository" commit="f59ca600c89a4a8ce8700a14b34bb3874ba7f40f">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -104,13 +104,12 @@
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab MIDI only tracks (with hidden MCPs) only get their TCP recalled\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab FX return tracks (hidden in the arrange view) only get their MCP recalled If you add tracks later, press the * button (beside the ALL button), and a new snapshot is taken.\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Other features:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Ctrl/Cmd click for multi-select\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Alt/Opt click or turn on Solo mode for soloing\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Search tracks\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Adapts to your theme It's currently a work-in-progress, but the plan is to support a keyboard-centric (if desired), workflow, inspired by vim. And, of course, add some bells and whistles.\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Roadmap:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Allow drag-select\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Support shift-select\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Support click-drag-select\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Reaper actions for focusing, toggling marked pinned tracks, etc\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Maybe: track manager features (eg. delete, add, move)\sa180\par}
 }
 ]]></description>
@@ -287,6 +286,10 @@
       <version name="0.6.1" author="Luiza177" time="2026-09-27T10:29:16Z">
         <changelog><![CDATA[- Fixed crash on exit on empty proejct]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/89864f2036a37807ce72c30216446d521fa45a44/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.6.2" author="Luiza177" time="2026-10-01T10:18:50Z">
+        <changelog><![CDATA[- Fix: guard against invalid context when redocking]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/f59ca600c89a4a8ce8700a14b34bb3874ba7f40f/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
