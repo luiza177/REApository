@@ -1,5 +1,5 @@
 -- @description Track Compass - A fast and efficient way to navigate and focus in large projects.
--- @version 0.6.2
+-- @version 0.6.3
 -- @author Luiza177
 -- @about
 --   # Track Compass
@@ -22,7 +22,7 @@
 --   - Reaper actions for focusing, toggling marked pinned tracks, etc
 --   - Maybe: track manager features (eg. delete, add, move)
 -- @changelog
---   - Fix: guard against invalid context when redocking
+--   - Still working on docker bug, slight code regression
 -- @provides
 --   [main] .
 
@@ -41,19 +41,13 @@ end
 package.path = reaper.ImGui_GetBuiltinPath() .. "/?.lua;" .. package.path
 local ImGui = require("imgui")("0.10")
 
-local function CreateContextAndResources()
-	ctx = ImGui.CreateContext("Track Compass")
+local ctx = ImGui.CreateContext("Track Compass")
 
-	italic_font = ImGui.CreateFont("sans-serif", ImGui.FontFlags_Italic)
-	ImGui.Attach(ctx, italic_font)
+local italic_font = ImGui.CreateFont("sans-serif", ImGui.FontFlags_Italic)
+ImGui.Attach(ctx, italic_font)
 
-	search_filter = ImGui.CreateTextFilter()
-	ImGui.Attach(ctx, search_filter)
-
-	ImGui.SetConfigVar(ctx, ImGui.ConfigVar_HoverStationaryDelay, 0.6)
-end
-
-CreateContextAndResources()
+local search_filter = ImGui.CreateTextFilter()
+ImGui.Attach(ctx, search_filter)
 
 local FLT_MIN, FLT_MAX = ImGui.NumericLimits_Float()
 local ext_name = "luiza177.TrackCompass"
@@ -102,6 +96,10 @@ if os == "OSX32" or os == "OSX64" or os == "macOS-arm64" then
 end
 local CTRL = macOS and "Cmd" or "Ctrl"
 local ALT = macOS and "Opt" or "Alt"
+
+---------------------------------------------------------------------------
+-- CONFIG VARS
+ImGui.SetConfigVar(ctx, ImGui.ConfigVar_HoverStationaryDelay, 0.6)
 
 ---------------------------------------------------------------------------
 -- GENERAL HELPERS
@@ -767,7 +765,6 @@ local function RenderTrackListContextMenu(track, is_pinned)
 end
 
 -- MAIN LIST
-
 local function IsEntrySelected(track, set)
 	if focus_view then
 		return set[track.track_ref] == true
@@ -1848,8 +1845,7 @@ local function RenderSearchList()
 end
 
 --==============================================================
--- local function loop()
-local function Main()
+local function loop()
 	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, ROUNDING)
 	ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 8)
 
@@ -2279,10 +2275,10 @@ local function Main()
 
 		ImGui.End(ctx)
 	end -- if visible
-	-- if open and not quit then
-	-- reaper.defer(loop)
-	-- end
-	return open and not quit
+
+	if open and not quit then
+		reaper.defer(loop)
+	end
 end
 
 local function SavePersistentVars()
@@ -2322,25 +2318,7 @@ local function Init()
 	InitProject()
 end
 
-local function SafeLoop()
-	local ok, result = pcall(Main)
-	if not ok then
-		if tostring(result):match("expected a valid ImGui_Context") then
-			CreateContextAndResources()
-			reaper.defer(SafeLoop)
-		else
-			error(result)
-		end
-		return
-	end
-
-	if result then -- returns true: open and not quit
-		reaper.defer(SafeLoop)
-	end
-end
-
 reaper.set_action_options(1 | 2) -- auto-terminate, re-launch
 Init()
--- reaper.defer(loop)
-reaper.defer(SafeLoop)
+reaper.defer(loop)
 reaper.atexit(SavePersistentVars)
