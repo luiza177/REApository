@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Luiza177's REApository" commit="f59ca600c89a4a8ce8700a14b34bb3874ba7f40f">
+<index version="1" name="Luiza177's REApository" commit="33639dc189658d18b2d5fdef697894684854fecb">
   <category name="Editing">
     <reapack name="luiza177_Extend time selection by one measure.lua" type="script" desc="Extend time selection by one measure">
       <version name="1.0" author="Luiza177" time="2024-06-08T13:26:54Z">
@@ -290,6 +290,10 @@
       <version name="0.6.2" author="Luiza177" time="2026-10-01T10:18:50Z">
         <changelog><![CDATA[- Fix: guard against invalid context when redocking]]></changelog>
         <source main="main">https://github.com/luiza177/REApository/raw/f59ca600c89a4a8ce8700a14b34bb3874ba7f40f/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
+      </version>
+      <version name="0.6.3" author="Luiza177" time="2026-10-01T15:29:42Z">
+        <changelog><![CDATA[- Still working on docker bug, slight code regression]]></changelog>
+        <source main="main">https://github.com/luiza177/REApository/raw/33639dc189658d18b2d5fdef697894684854fecb/Workflow/Track%20Compass/luiza177_Track%20Compass.lua</source>
       </version>
     </reapack>
   </category>
