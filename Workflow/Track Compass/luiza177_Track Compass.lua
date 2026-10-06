@@ -26,6 +26,9 @@
 -- @provides
 --   [main] .
 
+-- TODO: option to toggle script on and off, instead of refocus/restart workflow
+-- TODO: setup startup action remembering whether it was open or closed on reaper startup
+
 if not reaper.ImGui_GetBuiltinPath then
 	return reaper.MB("ReaImGui is not installed or too old.", "Track Compass -- ERROR", 0)
 end
@@ -1852,6 +1855,7 @@ local function loop()
 	local color_count = PushInitColors()
 
 	local window_flags = ImGui.WindowFlags_NoCollapse | ImGui.WindowFlags_NoNav
+	ImGui.SetNextWindowSize(ctx, 400, 800, ImGui.Cond_FirstUseEver) -- FIXME: get better numbers
 	local visible, open = ImGui.Begin(ctx, "Track Compass", true, window_flags)
 
 	ImGui.PopStyleVar(ctx, 2) -- window rounding / padding

@@ -1,0 +1,6 @@
+[submodule "cpp ext playground/reaper_hello/external/reaper-sdk"]
+	path = cpp ext playground/reaper_hello/external/reaper-sdk
+	url = https://github.com/justinfrankel/reaper-sdk
+[submodule "cpp ext playground/reaper_hello/external/WDL"]
+	path = cpp ext playground/reaper_hello/external/WDL
+	url = https://github.com/justinfrankel/WDL
